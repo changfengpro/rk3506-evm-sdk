@@ -1,0 +1,25 @@
+From d1defad54dcb29da8e970b5b2d5905f0dc1446ea Mon Sep 17 00:00:00 2001
+From: changfengpro <2728019272@qq.com>
+Date: Sat, 4 Apr 2026 22:28:47 +0800
+Subject: [PATCH] Fix the bug
+
+---
+ project/rk3506-mcu/src/main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/project/rk3506-mcu/src/main.c b/project/rk3506-mcu/src/main.c
+index a960312..67eedab 100644
+--- a/project/rk3506-mcu/src/main.c
++++ b/project/rk3506-mcu/src/main.c
+@@ -111,7 +111,7 @@ int main(void)
+ 
+     while (1) {
+     
+-        printf("MCU is running, tick: %u\n", (unsigned int)count++);
++        HAL_DBG("MCU is running, tick: %d\n", count++);
+         HAL_DelayMs(1000);
+         //   __asm volatile ("wfi");
+     }
+-- 
+2.43.0
+
