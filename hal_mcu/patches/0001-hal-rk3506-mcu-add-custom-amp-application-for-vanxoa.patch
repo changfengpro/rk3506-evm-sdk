@@ -1,0 +1,150 @@
+From def89b95fd33bff0966910b6f095e2963eff88b2 Mon Sep 17 00:00:00 2001
+From: changfengpro <2728019272@qq.com>
+Date: Sat, 4 Apr 2026 16:22:03 +0800
+Subject: [PATCH] hal: rk3506-mcu: add custom amp application for vanxoak board
+
+---
+ project/rk3506-mcu/GCC/gcc_bus_m0.ld |  2 +-
+ project/rk3506-mcu/Image/amp.its     |  2 +-
+ project/rk3506-mcu/src/main.c        | 54 ++++++++++++++++++++--------
+ project/rk3506-mcu/src/test_demo.c   |  2 +-
+ 4 files changed, 42 insertions(+), 18 deletions(-)
+
+diff --git a/project/rk3506-mcu/GCC/gcc_bus_m0.ld b/project/rk3506-mcu/GCC/gcc_bus_m0.ld
+index 5d9ff96..81b2360 100644
+--- a/project/rk3506-mcu/GCC/gcc_bus_m0.ld
++++ b/project/rk3506-mcu/GCC/gcc_bus_m0.ld
+@@ -5,7 +5,7 @@
+ 
+ MEMORY
+ {
+-    RAM(rxw) : ORIGIN = 0x00000000, LENGTH = 0x8000
++    RAM (rwx) : ORIGIN = 0x03a00000, LENGTH = 0x10000
+     LINUX_RPMSG (rxw) : ORIGIN = 0x03c00000, LENGTH = 0x00200000
+ }
+ 
+diff --git a/project/rk3506-mcu/Image/amp.its b/project/rk3506-mcu/Image/amp.its
+index 8c492ec..864807c 100644
+--- a/project/rk3506-mcu/Image/amp.its
++++ b/project/rk3506-mcu/Image/amp.its
+@@ -16,7 +16,7 @@
+ 			type         = "standalone";	// must be "standalone"
+ 			compression  = "none";
+ 			arch         = "arm";		// "arm64" or "arm", the same as U-Boot state
+-			load         = <0xfff84000>;
++			load         = <0x03a00000>;
+ 			udelay       = <1000000>;
+ 			hash {
+ 				algo = "sha256";
+diff --git a/project/rk3506-mcu/src/main.c b/project/rk3506-mcu/src/main.c
+index eb80528..89de7d9 100644
+--- a/project/rk3506-mcu/src/main.c
++++ b/project/rk3506-mcu/src/main.c
+@@ -7,16 +7,17 @@
+ #include "hal_base.h"
+ 
+ /********************* Private MACRO Definition ******************************/
+-//#define TEST_DEMO
+-
++// #define TEST_DEMO
++// #define DEBUG_FLAG_ADDR  0x03b00000
++// #define WRITE_FLAG(val)  (*((volatile uint32_t *)DEBUG_FLAG_ADDR) = (val))
+ /********************* Private Structure Definition **************************/
+ 
+ /********************* Private Variable Definition ***************************/
+-
++static uint32_t count;
+ /********************* Private Function Definition ***************************/
+ 
+ /********************* Public Function Definition ****************************/
+-static struct UART_REG *pUart = UART4;
++static struct UART_REG *pUart = UART3;
+ 
+ #ifdef __GNUC__
+ __USED int _write(int fd, char *ptr, int len)
+@@ -61,12 +62,11 @@ int fputc(int ch, FILE *f)
+ int main(void)
+ {
+     struct HAL_UART_CONFIG hal_uart_config = {
+-        .baudRate = UART_BR_1500000,
++        .baudRate = UART_BR_115200,
+         .dataBit = UART_DATA_8B,
+         .stopBit = UART_ONE_STOPBIT,
+         .parity = UART_PARITY_DISABLE,
+     };
+-
+     /* HAL BASE Init */
+     HAL_Init();
+ 
+@@ -77,22 +77,46 @@ int main(void)
+     HAL_INTMUX_Init();
+ 
+     /* UART Init */
+-    HAL_PINCTRL_SetRMIO(GPIO_BANK1,
+-                        GPIO_PIN_C2,
+-                        RMIO_UART4_TX);
+-    HAL_PINCTRL_SetRMIO(GPIO_BANK1,
+-                        GPIO_PIN_C3,
+-                        RMIO_UART4_RX);
+-    HAL_UART_Init(&g_uart4Dev, &hal_uart_config);
+ 
+-    HAL_DBG("Hello RK3506 mcu\n");
++    HAL_CRU_ClkEnable(PCLK_UART3_GATE);
++    HAL_CRU_ClkEnable(SCLK_UART3_SRC_GATE);
++
++    HAL_PINCTRL_SetIOMUX(GPIO_BANK0, GPIO_PIN_A0, PIN_CONFIG_MUX_FUNC4); 
++    HAL_PINCTRL_SetIOMUX(GPIO_BANK0, GPIO_PIN_A1, PIN_CONFIG_MUX_FUNC4);
++
++    // HAL_PINCTRL_SetRMIO(GPIO_BANK0,
++    //                     GPIO_PIN_A0,
++    //                     RMIO_UART3_TX);
++    // HAL_PINCTRL_SetRMIO(GPIO_BANK0,
++    //                     GPIO_PIN_A1,
++    //                     RMIO_UART3_RX);
++
++    HAL_UART_Init(&g_uart3Dev, &hal_uart_config);
++
++    HAL_UART_SerialOutChar(pUart, '\n');
++
++    HAL_UART_SerialOutChar(pUart, 'O');
++    HAL_UART_SerialOutChar(pUart, 'K');
++    HAL_UART_SerialOutChar(pUart, '\n');
++
++    HAL_DBG("\n=======================================\n");
++    HAL_DBG("Hello RK3506 MCU - UART3 is ALIVE!!!\n");
++    HAL_DBG("=======================================\n");
+ 
+ #ifdef TEST_DEMO
+     test_demo();
+ #endif
+ 
+     while (1) {
+-        __asm volatile ("wfi");
++    
++        HAL_DBG("MCU is running, tick: %lu\n", count++);
++        const char *msg = "MCU is running, tick: ";
++        for (int i = 0; msg[i] != '\0'; i++) {
++            HAL_UART_SerialOutChar(pUart, msg[i]);
++        }
++
++        HAL_DelayMs(1000);
++    //       __asm volatile ("wfi");
+     }
+ }
+ 
+diff --git a/project/rk3506-mcu/src/test_demo.c b/project/rk3506-mcu/src/test_demo.c
+index 06f0688..fe32ae6 100644
+--- a/project/rk3506-mcu/src/test_demo.c
++++ b/project/rk3506-mcu/src/test_demo.c
+@@ -10,7 +10,7 @@
+ /********************* Private MACRO Definition ******************************/
+ //#define GPIO_TEST
+ //#define GPIO_VIRTUAL_MODEL_TEST
+-//#define RPMSG_LINUX_TEST
++#define RPMSG_LINUX_TEST
+ //#define SYSTICK_TEST
+ //#define TIMER_TEST
+ //#define TIMER_INTMUX_TEST
+-- 
+2.43.0
+

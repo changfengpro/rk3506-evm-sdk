@@ -1,0 +1,1 @@
+cmd_arch/arm/mach-rockchip/rk3506/built-in.o :=  /home/rmer/Project/Linux/rk3506_linux6.1_sdk_v1.2.0/prebuilts/gcc/linux-x86/arm/gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf/bin/arm-none-linux-gnueabihf-ld.bfd   -r -o arch/arm/mach-rockchip/rk3506/built-in.o arch/arm/mach-rockchip/rk3506/syscon_rk3506.o arch/arm/mach-rockchip/rk3506/rk3506.o 

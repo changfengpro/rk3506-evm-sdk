@@ -1,0 +1,106 @@
+.
+├── buildroot
+│   ├── configs
+│   │   ├── rk3506_rm_buildroot_defconfig
+│   │   └── rockchip_hd_rk3506g_evm_sd_defconfig
+│   ├── overlay
+│   └── patches
+├── device_rockchip
+│   └── global_config
+├── hal_mcu
+│   ├── common
+│   │   └── GCC
+│   │       ├── Cortex-A_64.mk
+│   │       ├── Cortex-A.mk
+│   │       ├── Cortex-M.mk
+│   │       └── riscv.mk
+│   └── project
+│       ├── GCC
+│       │   ├── gcc_bus_m0.ld
+│       │   ├── Makefile
+│       │   ├── mcu.bin
+│       │   ├── mcu.elf
+│       │   ├── TestDemo.elf
+│       │   └── TestDemo.map
+│       ├── IMage
+│       │   └── amp_mcu.its
+│       └── src
+│           ├── hal_conf.h
+│           ├── main.c
+│           ├── main.o
+│           ├── syscall.c
+│           ├── syscall.o
+│           ├── test_conf.h
+│           ├── test_demo.c
+│           └── test_demo.o
+├── kernel
+│   ├── configs
+│   │   ├── rk3506-display.config
+│   │   ├── rk3506_rm_kernel_defconfig
+│   │   ├── rk3506-usb-otg.config
+│   │   └── vanxoak_hd_rk3506g_evm_sd_defconfig
+│   ├── dts
+│   │   ├── rk3506-amp.dtsi
+│   │   ├── rk3506b-evb1-v10.dts
+│   │   ├── rk3506b-test2-v10.dts
+│   │   ├── rk3506.dtsi
+│   │   ├── rk3506-evb1-v10.dtsi
+│   │   ├── rk3506-evb2-v10.dtsi
+│   │   ├── rk3506g-demo-display-control.dts
+│   │   ├── rk3506g-evb1-flexbus-cif.dtsi
+│   │   ├── rk3506g-evb1-v10-amp.dts
+│   │   ├── rk3506g-evb1-v10-dsmc-lb-slave.dts
+│   │   ├── rk3506g-evb1-v10-dsmc-master.dts
+│   │   ├── rk3506g-evb1-v10.dts
+│   │   ├── rk3506g-evb1-v10-flexbus-adc-dac.dts
+│   │   ├── rk3506g-evb1-v10-mcu-k350c4516t.dts
+│   │   ├── rk3506g-evb1-v10-rgb-Q7050ITH2641AA1T.dts
+│   │   ├── rk3506g-evb1-v10-sii9022-bt1120-to-hdmi.dts
+│   │   ├── rk3506g-evb1-v10-sii9022-rgb2hdmi.dts
+│   │   ├── rk3506g-evb2-v10.dts
+│   │   ├── rk3506g-iotest-pwm-test.dtsi
+│   │   ├── rk3506g-iotest-v10.dts
+│   │   ├── rk3506g-iotest-v10-pdm.dts
+│   │   ├── rk3506g-test1-v10-audio.dts
+│   │   ├── rk3506-iot-nand-rgb-800x480.dtsi
+│   │   ├── rk3506-pinctrl.dtsi
+│   │   ├── rk3506-pinctrl-rmio.dtsi
+│   │   ├── rk3506-rk801.dtsi
+│   │   ├── rk3506-rk816.dtsi
+│   │   ├── vanxoak-hd-rk3506b-iot-emmc-v1.dts
+│   │   ├── vanxoak-hd-rk3506b-iot-nand-v1.dts
+│   │   ├── vanxoak-hd-rk3506-evm-mipi-480x800.dtsi
+│   │   ├── vanxoak-hd-rk3506-evm-v1.dtsi
+│   │   ├── vanxoak-hd-rk3506g-evm-nand-v1.dts
+│   │   ├── vanxoak-hd-rk3506g-evm-sd-v1.dts
+│   │   ├── vanxoak-hd-rk3506g-iot-nand-v1.dts
+│   │   ├── vanxoak-hd-rk3506-iot-rgb-1024x600.dtsi
+│   │   ├── vanxoak-hd-rk3506-iot-rgb-800x480.dtsi
+│   │   └── vanxoak-hd-rk3506-iot-v1.dtsi
+│   └── patches
+├── scripts
+├── tree.txt
+└── u-boot
+    ├── configs
+    │   └── rk3506_defconfig
+    ├── dts
+    │   ├── rk3506.dtsi
+    │   ├── rk3506-evb.dts
+    │   ├── rk3506-evb-tb.dts
+    │   ├── rk3506-pinctrl.dtsi
+    │   ├── rk3506-pinctrl-rmio.dtsi
+    │   └── rk3506-u-boot.dtsi
+    ├── march-rockchip
+    │   └── rk3506
+    │       ├── built-in.o
+    │       ├── Kconfig
+    │       ├── Makefile
+    │       ├── rk3506.c
+    │       ├── rk3506.o
+    │       ├── rk3506.su
+    │       ├── syscon_rk3506.c
+    │       ├── syscon_rk3506.o
+    │       └── syscon_rk3506.su
+    └── patches
+
+24 directories, 80 files

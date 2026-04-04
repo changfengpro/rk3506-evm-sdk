@@ -1,0 +1,332 @@
+From 5564126f6f83ecbc4294496021d67cec1ec808be Mon Sep 17 00:00:00 2001
+From: changfengpro <2728019272@qq.com>
+Date: Sat, 4 Apr 2026 16:22:57 +0800
+Subject: [PATCH] rk3506: config amp FIT image and board variables for vanxoak
+ evm
+
+---
+ .chips/rk3506/amp_mcu.its                     |  2 +-
+ .chips/rk3506/package-file                    |  1 +
+ .chips/rk3506/parameter-evm-nand.txt          |  2 +-
+ .chips/rk3506/parameter-evm-sd.txt            | 13 ++++++++++++
+ .chips/rk3506/parameter-iot-emmc.txt          | 13 ++++++++++++
+ .chips/rk3506/parameter-iot-nand.txt          | 13 ++++++++++++
+ .../rockchip_rk3506_b_iot_emmc_defconfig      | 19 +++++++++++++++++
+ .../rockchip_rk3506_b_iot_emmc_qt_defconfig   | 19 +++++++++++++++++
+ .../rockchip_rk3506_b_iot_nand_defconfig      | 20 ++++++++++++++++++
+ ...g => rockchip_rk3506_g_evm_nand_defconfig} | 12 ++++++-----
+ .../rk3506/rockchip_rk3506_g_evm_sd_defconfig | 21 +++++++++++++++++++
+ .../rockchip_rk3506_g_iot_nand_defconfig      | 20 ++++++++++++++++++
+ common/scripts/mk-rootfs.sh                   |  3 +++
+ common/scripts/post-wifibt.sh                 | 16 ++++++++++++++
+ 14 files changed, 167 insertions(+), 7 deletions(-)
+ create mode 100755 .chips/rk3506/parameter-evm-sd.txt
+ create mode 100755 .chips/rk3506/parameter-iot-emmc.txt
+ create mode 100755 .chips/rk3506/parameter-iot-nand.txt
+ create mode 100755 .chips/rk3506/rockchip_rk3506_b_iot_emmc_defconfig
+ create mode 100755 .chips/rk3506/rockchip_rk3506_b_iot_emmc_qt_defconfig
+ create mode 100755 .chips/rk3506/rockchip_rk3506_b_iot_nand_defconfig
+ rename .chips/rk3506/{rockchip_rk3506_evm_nand_defconfig => rockchip_rk3506_g_evm_nand_defconfig} (62%)
+ create mode 100755 .chips/rk3506/rockchip_rk3506_g_evm_sd_defconfig
+ create mode 100755 .chips/rk3506/rockchip_rk3506_g_iot_nand_defconfig
+
+diff --git a/.chips/rk3506/amp_mcu.its b/.chips/rk3506/amp_mcu.its
+index d731593..e037929 100644
+--- a/.chips/rk3506/amp_mcu.its
++++ b/.chips/rk3506/amp_mcu.its
+@@ -16,7 +16,7 @@
+ 			type         = "standalone";	// must be "standalone"
+ 			compression  = "none";
+ 			arch         = "arm";		// "arm64" or "arm", the same as U-Boot state
+-			load         = <0xfff84000>;
++			load         = <0x03a00000>;
+ 			udelay       = <1000000>;
+ 			compile {
+ 				sys      = "hal";
+diff --git a/.chips/rk3506/package-file b/.chips/rk3506/package-file
+index 09459a2..6b70f98 100755
+--- a/.chips/rk3506/package-file
++++ b/.chips/rk3506/package-file
+@@ -8,4 +8,5 @@ boot	boot.img
+ recovery	recovery.img
+ rootfs	rootfs.img
+ oem	oem.img
++amp	amp.img
+ userdata	userdata.img
+diff --git a/.chips/rk3506/parameter-evm-nand.txt b/.chips/rk3506/parameter-evm-nand.txt
+index 85096f5..bf55d76 100755
+--- a/.chips/rk3506/parameter-evm-nand.txt
++++ b/.chips/rk3506/parameter-evm-nand.txt
+@@ -9,5 +9,5 @@ CHECK_MASK: 0x80
+ PWR_HLD: 0,0,A,0,1
+ TYPE: GPT
+ GROW_ALIGN: 0
+-CMDLINE:mtdparts=:0x00000800@0x00000800(vnvm),0x00002000@0x00001000(uboot),0x00000800@0x00003000(misc),0x0000f000@0x00003800(recovery),0x00005000@0x00012800(boot),0x00050000@0x00017800(rootfs),0x00008000@0x00067800(oem),-@0x0006f800(userdata:grow)
++CMDLINE:mtdparts=:0x00001000@0x00000800(vnvm),0x00004000@0x00001800(uboot),0x00001000@0x00005800(misc),0x0000f000@0x00006800(recovery),0x00005000@0x00015800(boot),0x00050000@0x0001a800(rootfs),0x00008000@0x0006a800(oem),-@0x00072800(userdata:grow)
+ uuid:rootfs=614e0000-0000-4b53-8000-1d28000054a9
+diff --git a/.chips/rk3506/parameter-evm-sd.txt b/.chips/rk3506/parameter-evm-sd.txt
+new file mode 100755
+index 0000000..c9997b0
+--- /dev/null
++++ b/.chips/rk3506/parameter-evm-sd.txt
+@@ -0,0 +1,13 @@
++FIRMWARE_VER:8.1
++MACHINE_MODEL:RK3506
++MACHINE_ID:007
++MANUFACTURER: RK3506
++MAGIC: 0x5041524B
++ATAG: 0x00200800
++MACHINE: 3506
++CHECK_MASK: 0x80
++PWR_HLD: 0,0,A,0,1
++TYPE: GPT
++GROW_ALIGN: 0
++CMDLINE:mtdparts=:0x00002000@0x00004000(uboot),0x00002000@0x00006000(misc),0x00020000@0x00008000(boot),0x00001000@0x00028000(amp),0x00040000@0x00029000(recovery),0x00c00000@0x00069000(rootfs),0x00040000@0x00c69000(oem),-@0x00ca9000(userdata:grow)
++uuid:rootfs=614e0000-0000-4b53-8000-1d28000054a9
+diff --git a/.chips/rk3506/parameter-iot-emmc.txt b/.chips/rk3506/parameter-iot-emmc.txt
+new file mode 100755
+index 0000000..0f7080f
+--- /dev/null
++++ b/.chips/rk3506/parameter-iot-emmc.txt
+@@ -0,0 +1,13 @@
++FIRMWARE_VER:8.1
++MACHINE_MODEL:RK3506
++MACHINE_ID:007
++MANUFACTURER: RK3506
++MAGIC: 0x5041524B
++ATAG: 0x00200800
++MACHINE: 3506
++CHECK_MASK: 0x80
++PWR_HLD: 0,0,A,0,1
++TYPE: GPT
++GROW_ALIGN: 0
++CMDLINE:mtdparts=:0x00002000@0x00004000(uboot),0x00002000@0x00006000(misc),0x00020000@0x00008000(boot),0x00040000@0x00028000(recovery),0x00c00000@0x00068000(rootfs),0x00040000@0x00c68000(oem),-@0x00ca8000(userdata:grow)
++uuid:rootfs=614e0000-0000-4b53-8000-1d28000054a9
+\ No newline at end of file
+diff --git a/.chips/rk3506/parameter-iot-nand.txt b/.chips/rk3506/parameter-iot-nand.txt
+new file mode 100755
+index 0000000..bf55d76
+--- /dev/null
++++ b/.chips/rk3506/parameter-iot-nand.txt
+@@ -0,0 +1,13 @@
++FIRMWARE_VER:8.1
++MACHINE_MODEL:RK3506
++MACHINE_ID:007
++MANUFACTURER: RK3506
++MAGIC: 0x5041524B
++ATAG: 0x00200800
++MACHINE: 3506
++CHECK_MASK: 0x80
++PWR_HLD: 0,0,A,0,1
++TYPE: GPT
++GROW_ALIGN: 0
++CMDLINE:mtdparts=:0x00001000@0x00000800(vnvm),0x00004000@0x00001800(uboot),0x00001000@0x00005800(misc),0x0000f000@0x00006800(recovery),0x00005000@0x00015800(boot),0x00050000@0x0001a800(rootfs),0x00008000@0x0006a800(oem),-@0x00072800(userdata:grow)
++uuid:rootfs=614e0000-0000-4b53-8000-1d28000054a9
+diff --git a/.chips/rk3506/rockchip_rk3506_b_iot_emmc_defconfig b/.chips/rk3506/rockchip_rk3506_b_iot_emmc_defconfig
+new file mode 100755
+index 0000000..fb21792
+--- /dev/null
++++ b/.chips/rk3506/rockchip_rk3506_b_iot_emmc_defconfig
+@@ -0,0 +1,19 @@
++RK_BUILDROOT_BASE_CFG="hd_rk3506b_iot_emmc"
++RK_ROOTFS_INSTALL_MODULES=y
++RK_WIFIBT=y
++RK_WIFIBT_ON_BOARD=y
++RK_WIFIBT_CHIP="AIC8800DC"
++# RK_ROOTFS_LOG_GUARDIAN is not set
++RK_UBOOT_CFG_FRAGMENTS="rk3506b rk-emmc"
++RK_UBOOT_SPL=y
++RK_KERNEL_CFG="vanxoak_hd_rk3506b_iot_emmc_defconfig"
++RK_KERNEL_CFG_FRAGMENTS="rk3506-display.config rk3506-usb-otg.config"
++RK_KERNEL_DTS_NAME="vanxoak-hd-rk3506b-iot-emmc-v1"
++RK_BOOT_COMPRESSED=y
++RK_RECOVERY_FIT_ITS_NAME="thunderboot4recovery.its"
++RK_EXTRA_PARTITION_1_FSTYPE="ext2"
++RK_EXTRA_PARTITION_1_SRC="rk3506_oem"
++RK_EXTRA_PARTITION_2_FSTYPE="ext2"
++RK_EXTRA_PARTITION_NUM=2
++RK_PARAMETER="parameter-iot-emmc.txt"
++RK_USE_FIT_IMG=y
+diff --git a/.chips/rk3506/rockchip_rk3506_b_iot_emmc_qt_defconfig b/.chips/rk3506/rockchip_rk3506_b_iot_emmc_qt_defconfig
+new file mode 100755
+index 0000000..ecb79a3
+--- /dev/null
++++ b/.chips/rk3506/rockchip_rk3506_b_iot_emmc_qt_defconfig
+@@ -0,0 +1,19 @@
++RK_BUILDROOT_BASE_CFG="hd_rk3506b_iot_emmc_qt"
++RK_ROOTFS_INSTALL_MODULES=y
++RK_WIFIBT=y
++RK_WIFIBT_ON_BOARD=y
++RK_WIFIBT_CHIP="AIC8800DC"
++# RK_ROOTFS_LOG_GUARDIAN is not set
++RK_UBOOT_CFG_FRAGMENTS="rk3506b rk-emmc"
++RK_UBOOT_SPL=y
++RK_KERNEL_CFG="vanxoak_hd_rk3506b_iot_emmc_qt_defconfig"
++RK_KERNEL_CFG_FRAGMENTS="rk3506-display.config rk3506-usb-otg.config"
++RK_KERNEL_DTS_NAME="vanxoak-hd-rk3506b-iot-emmc-v1"
++RK_BOOT_COMPRESSED=y
++RK_RECOVERY_FIT_ITS_NAME="thunderboot4recovery.its"
++RK_EXTRA_PARTITION_1_FSTYPE="ext2"
++RK_EXTRA_PARTITION_1_SRC="rk3506_oem"
++RK_EXTRA_PARTITION_2_FSTYPE="ext2"
++RK_EXTRA_PARTITION_NUM=2
++RK_PARAMETER="parameter-iot-emmc.txt"
++RK_USE_FIT_IMG=y
+diff --git a/.chips/rk3506/rockchip_rk3506_b_iot_nand_defconfig b/.chips/rk3506/rockchip_rk3506_b_iot_nand_defconfig
+new file mode 100755
+index 0000000..504ca04
+--- /dev/null
++++ b/.chips/rk3506/rockchip_rk3506_b_iot_nand_defconfig
+@@ -0,0 +1,20 @@
++RK_BUILDROOT_BASE_CFG="hd_rk3506b_iot_nand"
++RK_ROOTFS_UBI=y
++RK_ROOTFS_INSTALL_MODULES=y
++RK_WIFIBT=y
++RK_WIFIBT_ON_BOARD=y
++RK_WIFIBT_CHIP="AIC8800DC"
++# RK_ROOTFS_LOG_GUARDIAN is not set
++RK_UBOOT_CFG_FRAGMENTS="rk3506b rk3506_tb"
++RK_UBOOT_SPL=y
++RK_KERNEL_CFG="vanxoak_hd_rk3506b_iot_nand_defconfig"
++RK_KERNEL_CFG_FRAGMENTS="rk3506-display.config  rk3506-usb-otg.config"
++RK_KERNEL_DTS_NAME="vanxoak-hd-rk3506b-iot-nand-v1"
++RK_BOOT_COMPRESSED=y
++RK_BOOT_FIT_ITS_NAME="thunderboot.its"
++RK_RECOVERY_FIT_ITS_NAME="thunderboot4recovery.its"
++RK_FLASH_SIZE=2048
++RK_EXTRA_PARTITION_1_SRC="rk3506_oem"
++RK_PARAMETER="parameter-iot-nand.txt"
++RK_USE_FIT_IMG=y
++RK_PACKAGE_FILE_CUSTOM=y
+diff --git a/.chips/rk3506/rockchip_rk3506_evm_nand_defconfig b/.chips/rk3506/rockchip_rk3506_g_evm_nand_defconfig
+similarity index 62%
+rename from .chips/rk3506/rockchip_rk3506_evm_nand_defconfig
+rename to .chips/rk3506/rockchip_rk3506_g_evm_nand_defconfig
+index 597e096..b17f0f9 100755
+--- a/.chips/rk3506/rockchip_rk3506_evm_nand_defconfig
++++ b/.chips/rk3506/rockchip_rk3506_g_evm_nand_defconfig
+@@ -1,13 +1,15 @@
+-RK_BUILDROOT_BASE_CFG="rk3506_evm_nand"
++RK_BUILDROOT_BASE_CFG="hd_rk3506g_evm_nand"
+ RK_ROOTFS_UBI=y
+ RK_ROOTFS_INSTALL_MODULES=y
+-# RK_WIFIBT is not set
++RK_WIFIBT=y
++RK_WIFIBT_ON_BOARD=y
++RK_WIFIBT_CHIP="AIC8800DC"
+ # RK_ROOTFS_LOG_GUARDIAN is not set
+-RK_UBOOT_CFG_FRAGMENTS="rk3506 rk3506_tb"
++RK_UBOOT_CFG_FRAGMENTS="rk3506_tb"
+ RK_UBOOT_SPL=y
+-RK_KERNEL_CFG="rk3506_evm_nand_defconfig"
++RK_KERNEL_CFG="vanxoak_hd_rk3506g_evm_nand_defconfig"
+ RK_KERNEL_CFG_FRAGMENTS="rk3506-display.config  rk3506-usb-otg.config"
+-RK_KERNEL_DTS_NAME="rk3506-evm-nand-v10"
++RK_KERNEL_DTS_NAME="vanxoak-hd-rk3506g-evm-nand-v1"
+ RK_BOOT_COMPRESSED=y
+ RK_BOOT_FIT_ITS_NAME="thunderboot.its"
+ RK_RECOVERY_FIT_ITS_NAME="thunderboot4recovery.its"
+diff --git a/.chips/rk3506/rockchip_rk3506_g_evm_sd_defconfig b/.chips/rk3506/rockchip_rk3506_g_evm_sd_defconfig
+new file mode 100755
+index 0000000..4ca39c5
+--- /dev/null
++++ b/.chips/rk3506/rockchip_rk3506_g_evm_sd_defconfig
+@@ -0,0 +1,21 @@
++RK_ROOTFS=y
++RK_BUILDROOT_BASE_CFG="hd_rk3506g_evm_sd"
++RK_ROOTFS_HOSTNAME_CUSTOM=y
++RK_ROOTFS_HOSTNAME="RMer055"
++RK_ROOTFS_INSTALL_MODULES=y
++RK_WIFIBT_CHIP="AIC8800DC"
++# RK_ROOTFS_LOG_GUARDIAN is not set
++RK_UBOOT_CFG_FRAGMENTS="rk3506_tb rk-emmc rk3506-amp"
++RK_AMP=y
++RK_AMP_FIT_ITS="amp_mcu.its"
++RK_KERNEL_CFG="vanxoak_hd_rk3506g_evm_sd_defconfig"
++RK_KERNEL_CFG_FRAGMENTS="rk3506-display.config  rk3506-usb-otg.config"
++RK_KERNEL_DTS_NAME="vanxoak-hd-rk3506g-evm-sd-v1"
++RK_BOOT_COMPRESSED=y
++RK_BOOT_FIT_ITS_NAME="thunderboot.its"
++RK_RECOVERY=y
++RK_RECOVERY_FIT_ITS_NAME="thunderboot4recovery.its"
++RK_EXTRA_PARTITION_1_SRC="rk3506_oem"
++RK_PARAMETER="parameter-evm-sd.txt"
++RK_USE_FIT_IMG=y
++RK_PACKAGE_FILE_CUSTOM=y
+diff --git a/.chips/rk3506/rockchip_rk3506_g_iot_nand_defconfig b/.chips/rk3506/rockchip_rk3506_g_iot_nand_defconfig
+new file mode 100755
+index 0000000..34c0c8c
+--- /dev/null
++++ b/.chips/rk3506/rockchip_rk3506_g_iot_nand_defconfig
+@@ -0,0 +1,20 @@
++RK_BUILDROOT_BASE_CFG="hd_rk3506g_iot_nand"
++RK_ROOTFS_UBI=y
++RK_ROOTFS_INSTALL_MODULES=y
++RK_WIFIBT=y
++RK_WIFIBT_ON_BOARD=y
++RK_WIFIBT_CHIP="AIC8800DC"
++# RK_ROOTFS_LOG_GUARDIAN is not set
++RK_UBOOT_CFG_FRAGMENTS="rk3506_tb"
++RK_UBOOT_SPL=y
++RK_KERNEL_CFG="vanxoak_hd_rk3506g_iot_nand_defconfig"
++RK_KERNEL_CFG_FRAGMENTS="rk3506-display.config  rk3506-usb-otg.config"
++RK_KERNEL_DTS_NAME="vanxoak-hd-rk3506g-iot-nand-v1"
++RK_BOOT_COMPRESSED=y
++RK_BOOT_FIT_ITS_NAME="thunderboot.its"
++RK_RECOVERY_FIT_ITS_NAME="thunderboot4recovery.its"
++RK_FLASH_SIZE=2048
++RK_EXTRA_PARTITION_1_SRC="rk3506_oem"
++RK_PARAMETER="parameter-iot-nand.txt"
++RK_USE_FIT_IMG=y
++RK_PACKAGE_FILE_CUSTOM=y
+diff --git a/common/scripts/mk-rootfs.sh b/common/scripts/mk-rootfs.sh
+index 2c45726..26d6d98 100755
+--- a/common/scripts/mk-rootfs.sh
++++ b/common/scripts/mk-rootfs.sh
+@@ -13,6 +13,9 @@ build_buildroot()
+ 	message "          Start building buildroot($BUILDROOT_VERSION)"
+ 	message "=========================================="
+ 
++	echo "   RK_BUILDROOT_CFG  ($RK_BUILDROOT_CFG)"
++	echo "   IMAGE_DIR  ($IMAGE_DIR)"
++
+ 	"$RK_SCRIPTS_DIR/mk-buildroot.sh" $RK_BUILDROOT_CFG "$IMAGE_DIR"
+ 
+ 	if [ -r "$RK_LOG_DIR/post-rootfs.log" ]; then
+diff --git a/common/scripts/post-wifibt.sh b/common/scripts/post-wifibt.sh
+index ffb7805..3c76dd4 100755
+--- a/common/scripts/post-wifibt.sh
++++ b/common/scripts/post-wifibt.sh
+@@ -250,6 +250,13 @@ build_wifibt()
+ 		$KMAKE M=$RKWIFIBT_DIR/drivers/rtl8852be modules
+ 	fi
+ 
++	if [[ "$RK_WIFIBT_MODULES" =~ "AIC8800" ]];then
++		echo "building aic8800 wifi driver"
++		$KMAKE M=$RKWIFIBT_DIR/drivers/aic8800 modules
++		echo "building aic8800 bt driver"
++		$KMAKE M=$RKWIFIBT_DIR/drivers/bluetooth_aic8800_driver modules
++	fi
++
+ 	if ! [[ "$RK_KERNEL_VERSION_RAW" = "6.1" ]];then
+ 		echo "building realtek bt drivers"
+ 		$KMAKE M=$RKWIFIBT_DIR/drivers/bluetooth_uart_driver
+@@ -375,6 +382,15 @@ build_wifibt()
+ 		cp $RKWIFIBT_DIR/drivers/bcmdhd/*.ko $TARGET_DIR/lib/modules/
+ 	fi
+ 
++	if [[ "$RK_WIFIBT_MODULES" =~ "AIC8800" ]];then
++		echo "Copy AIC8800 file to rootfs:${TARGET_DIR}"
++		cp -r  $RKWIFIBT_DIR/firmware/aic8800/* \
++			$TARGET_DIR/lib/firmware/
++		cp $RKWIFIBT_DIR/drivers/aic8800/aic_load_fw/*.ko $TARGET_DIR/lib/modules/
++		cp $RKWIFIBT_DIR/drivers/aic8800/aic8800_fdrv/*.ko $TARGET_DIR/lib/modules/
++		cp $RKWIFIBT_DIR/drivers/bluetooth_aic8800_driver/*.ko $TARGET_DIR/lib/modules/
++	fi
++
+ 	# Install boot services
+ 	install_sysv_service $RKWIFIBT_DIR/S36wifibt-init.sh S
+ 	install_busybox_service $RKWIFIBT_DIR/S36wifibt-init.sh
+-- 
+2.43.0
+

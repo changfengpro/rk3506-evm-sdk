@@ -1,0 +1,5 @@
+arch/arm/mach-rockchip/rk3506/rk3506.c:70:6:board_debug_uart_init	0	static
+arch/arm/mach-rockchip/rk3506/rk3506.c:93:6:board_set_iomux	0	static
+arch/arm/mach-rockchip/rk3506/rk3506.c:117:6:board_unset_iomux	0	static
+arch/arm/mach-rockchip/rk3506/rk3506.c:169:5:arch_cpu_init	0	static
+arch/arm/mach-rockchip/rk3506/rk3506.c:241:5:fit_standalone_release	8	static
