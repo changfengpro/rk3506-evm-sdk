@@ -1,0 +1,146 @@
+From 13c6ac94c08af18d342a339e40d124ff0bdde55a Mon Sep 17 00:00:00 2001
+From: changfengpro <2728019272@qq.com>
+Date: Sun, 5 Apr 2026 22:28:50 +0800
+Subject: [PATCH] =?UTF-8?q?rpmsg=E6=B5=8B=E8=AF=95Tick?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ project/rk3506-mcu/src/main.c      |  3 ++
+ project/rk3506-mcu/src/test_demo.c | 77 +++++++++++++++++++++++-------
+ 2 files changed, 64 insertions(+), 16 deletions(-)
+
+diff --git a/project/rk3506-mcu/src/main.c b/project/rk3506-mcu/src/main.c
+index 2f42f8b..1a98815 100644
+--- a/project/rk3506-mcu/src/main.c
++++ b/project/rk3506-mcu/src/main.c
+@@ -16,6 +16,8 @@
+ static uint32_t count;
+ /********************* Private Function Definition ***************************/
+ 
++extern void app_rpmsg_send_loop_task(void);
++
+ /********************* Public Function Definition ****************************/
+ static struct UART_REG *pUart = UART3;
+ 
+@@ -113,6 +115,7 @@ int main(void)
+     while (1) {
+     
+         HAL_DBG("MCU is running, tick: %d\n", count++);
++        app_rpmsg_send_loop_task();
+         HAL_DelayMs(1000);
+         //   __asm volatile ("wfi");
+ 
+diff --git a/project/rk3506-mcu/src/test_demo.c b/project/rk3506-mcu/src/test_demo.c
+index c92db2b..4cf1622 100644
+--- a/project/rk3506-mcu/src/test_demo.c
++++ b/project/rk3506-mcu/src/test_demo.c
+@@ -8,6 +8,7 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
++
+ /********************* Private MACRO Definition ******************************/
+ //#define GPIO_TEST
+ //#define GPIO_VIRTUAL_MODEL_TEST
+@@ -248,8 +249,8 @@ static int32_t remote_ept_cb(void *payload, uint32_t payload_len, uint32_t src,
+ static void rpmsg_linux_test(void)
+ {
+     uint32_t master_id, remote_id;
+-    struct rpmsg_info_t *info;
+-    struct rpmsg_block_t *block;
++    // struct rpmsg_info_t *info;
++    // struct rpmsg_block_t *block;
+     uint32_t ept_flags;
+     void *ns_cb_data;
+ 
+@@ -259,20 +260,27 @@ static void rpmsg_linux_test(void)
+     HAL_DBG("rpmsg remote: remote core cpu_id-%" PRId32 "\n", remote_id);
+     HAL_DBG("rpmsg remote: shmem_base-0x%" PRIx32 " shmem_end-%" PRIx32 "\n", RPMSG_LINUX_MEM_BASE, RPMSG_LINUX_MEM_END);
+ 
+-    info = malloc(sizeof(struct rpmsg_info_t));
+-    if (info == NULL) {
+-        HAL_DBG("info malloc error!\n");
+-        while (1) {
+-            ;
+-        }
+-    }
+-    info->private = malloc(sizeof(struct rpmsg_block_t));
+-    if (info->private == NULL) {
+-        HAL_DBG("info malloc error!\n");
+-        while (1) {
+-            ;
+-        }
+-    }
++    struct rpmsg_info_t *info = &g_rpmsg_info;
++    struct rpmsg_block_t *block = &g_rpmsg_block;
++
++    memset(info, 0, sizeof(struct rpmsg_info_t));
++    memset(block, 0, sizeof(struct rpmsg_block_t));
++    info->private = block;
++
++    // info = malloc(sizeof(struct rpmsg_info_t));
++    // if (info == NULL) {
++    //     HAL_DBG("info malloc error!\n");
++    //     while (1) {
++    //         ;
++    //     }
++    // }
++    // info->private = malloc(sizeof(struct rpmsg_block_t));
++    // if (info->private == NULL) {
++    //     HAL_DBG("info malloc error!\n");
++    //     while (1) {
++    //         ;
++    //     }
++    // }
+ 
+ 
+     info->instance = rpmsg_lite_remote_init((void *)RPMSG_LINUX_MEM_BASE, RL_PLATFORM_SET_LINK_ID(master_id, remote_id), RL_NO_FLAGS);
+@@ -294,6 +302,43 @@ static void rpmsg_linux_test(void)
+     rpmsg_lite_send(info->instance, info->ept, info->m_ept_id, RPMSG_HAL_TEST_MSG, sizeof(RPMSG_HAL_TEST_MSG), RL_BLOCK);
+ }
+ 
++void app_rpmsg_send_loop_task(void)
++{
++    static uint32_t tick_count = 0;
++    char send_buf[64];
++    struct rpmsg_info_t *info = &g_rpmsg_info;
++
++    if (info->instance && info->ept && info->cb_sta == 1) {
++        
++        /* 1. 轻量级字符串拼接 (避开庞大的 snprintf) */
++        strcpy(send_buf, "MCU Tick: ");
++        int idx = strlen(send_buf);
++        
++        // 简单的 10 进制转字符串
++        uint32_t temp_val = tick_count++;
++        char num_str[16];
++        int num_len = 0;
++        
++        if (temp_val == 0) {
++            num_str[num_len++] = '0';
++        } else {
++            while (temp_val > 0) {
++                num_str[num_len++] = (temp_val % 10) + '0';
++                temp_val /= 10;
++            }
++        }
++        // 倒序写入 send_buf
++        while (num_len > 0) {
++            send_buf[idx++] = num_str[--num_len];
++        }
++        send_buf[idx] = '\0'; // 添加字符串结束符
++
++        /* 2. 发送给 Linux */
++        rpmsg_lite_send(info->instance, info->ept, info->m_ept_id, 
++                         send_buf, strlen(send_buf) + 1, RL_DONT_BLOCK);
++    }
++}
++
+ #endif
+ 
+ /************************************************/
+-- 
+2.43.0
+
