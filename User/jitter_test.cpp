@@ -26,7 +26,8 @@ int main() {
         return -1;
     }
 
-    std::cout << "--- Starting Jitter Test (10ms period) ---" << std::endl;
+    // 修改了打印提示信息
+    std::cout << "--- Starting Jitter Test (500Hz / 2ms period) ---" << std::endl;
 
     struct timespec next_wakeup, now;
     clock_gettime(CLOCK_MONOTONIC, &next_wakeup);
@@ -36,8 +37,8 @@ int main() {
     int64_t sum_jitter = 0;
     int loops = 0;
 
-    // 周期设为 10ms (10,000,000 纳秒)
-    const int64_t interval_ns = 10000000; 
+    // 周期设为 2ms (2,000,000 纳秒)，即 500Hz
+    const int64_t interval_ns = 2000000; 
 
     while (true) {
         // 计算下一次应该醒来的绝对时间
@@ -61,8 +62,8 @@ int main() {
         sum_jitter += jitter_ns;
         loops++;
 
-        // 每 1000 次 (10秒) 打印一次统计信息
-        if (loops % 1000 == 0) {
+        // 【显示逻辑修改】每 5000 次 (10秒) 打印一次统计信息
+        if (loops % 5000 == 0) {
             std::cout << "Loops: " << loops 
                       << " | Cur: " << jitter_ns / 1000 << " us"
                       << " | Avg: " << (sum_jitter / loops) / 1000 << " us"
