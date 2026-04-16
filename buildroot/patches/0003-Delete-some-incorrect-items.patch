@@ -1,0 +1,133 @@
+From dd13604adbb429a5048e9051e9ca3eb348d7229d Mon Sep 17 00:00:00 2001
+From: changfengpro <2728019272@qq.com>
+Date: Thu, 16 Apr 2026 22:12:02 +0800
+Subject: [PATCH 3/3] Delete some incorrect items
+
+---
+ "\343\200\202/output/buildroot/.br2-external.in.init"  |  5 -----
+ "\343\200\202/output/buildroot/.br2-external.in.jpeg"  |  5 -----
+ "\343\200\202/output/buildroot/.br2-external.in.linux" |  5 -----
+ "\343\200\202/output/buildroot/.br2-external.in.menus" |  5 -----
+ .../output/buildroot/.br2-external.in.openssl"         |  5 -----
+ "\343\200\202/output/buildroot/.br2-external.in.paths" |  5 -----
+ .../output/buildroot/.br2-external.in.skeleton"        |  5 -----
+ .../output/buildroot/.br2-external.in.toolchains"      |  5 -----
+ "\343\200\202/output/buildroot/.br2-external.mk"       | 10 ----------
+ 9 files changed, 50 deletions(-)
+ delete mode 100644 "\343\200\202/output/buildroot/.br2-external.in.init"
+ delete mode 100644 "\343\200\202/output/buildroot/.br2-external.in.jpeg"
+ delete mode 100644 "\343\200\202/output/buildroot/.br2-external.in.linux"
+ delete mode 100644 "\343\200\202/output/buildroot/.br2-external.in.menus"
+ delete mode 100644 "\343\200\202/output/buildroot/.br2-external.in.openssl"
+ delete mode 100644 "\343\200\202/output/buildroot/.br2-external.in.paths"
+ delete mode 100644 "\343\200\202/output/buildroot/.br2-external.in.skeleton"
+ delete mode 100644 "\343\200\202/output/buildroot/.br2-external.in.toolchains"
+ delete mode 100644 "\343\200\202/output/buildroot/.br2-external.mk"
+
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.init" "b/\343\200\202/output/buildroot/.br2-external.in.init"
+deleted file mode 100644
+index 19d58283..00000000
+--- "a/\343\200\202/output/buildroot/.br2-external.in.init"
++++ /dev/null
+@@ -1,5 +0,0 @@
+-#
+-# Automatically generated file; DO NOT EDIT.
+-#
+-
+-# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.jpeg" "b/\343\200\202/output/buildroot/.br2-external.in.jpeg"
+deleted file mode 100644
+index 19d58283..00000000
+--- "a/\343\200\202/output/buildroot/.br2-external.in.jpeg"
++++ /dev/null
+@@ -1,5 +0,0 @@
+-#
+-# Automatically generated file; DO NOT EDIT.
+-#
+-
+-# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.linux" "b/\343\200\202/output/buildroot/.br2-external.in.linux"
+deleted file mode 100644
+index 19d58283..00000000
+--- "a/\343\200\202/output/buildroot/.br2-external.in.linux"
++++ /dev/null
+@@ -1,5 +0,0 @@
+-#
+-# Automatically generated file; DO NOT EDIT.
+-#
+-
+-# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.menus" "b/\343\200\202/output/buildroot/.br2-external.in.menus"
+deleted file mode 100644
+index 19d58283..00000000
+--- "a/\343\200\202/output/buildroot/.br2-external.in.menus"
++++ /dev/null
+@@ -1,5 +0,0 @@
+-#
+-# Automatically generated file; DO NOT EDIT.
+-#
+-
+-# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.openssl" "b/\343\200\202/output/buildroot/.br2-external.in.openssl"
+deleted file mode 100644
+index 19d58283..00000000
+--- "a/\343\200\202/output/buildroot/.br2-external.in.openssl"
++++ /dev/null
+@@ -1,5 +0,0 @@
+-#
+-# Automatically generated file; DO NOT EDIT.
+-#
+-
+-# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.paths" "b/\343\200\202/output/buildroot/.br2-external.in.paths"
+deleted file mode 100644
+index 19d58283..00000000
+--- "a/\343\200\202/output/buildroot/.br2-external.in.paths"
++++ /dev/null
+@@ -1,5 +0,0 @@
+-#
+-# Automatically generated file; DO NOT EDIT.
+-#
+-
+-# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.skeleton" "b/\343\200\202/output/buildroot/.br2-external.in.skeleton"
+deleted file mode 100644
+index 19d58283..00000000
+--- "a/\343\200\202/output/buildroot/.br2-external.in.skeleton"
++++ /dev/null
+@@ -1,5 +0,0 @@
+-#
+-# Automatically generated file; DO NOT EDIT.
+-#
+-
+-# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.toolchains" "b/\343\200\202/output/buildroot/.br2-external.in.toolchains"
+deleted file mode 100644
+index 19d58283..00000000
+--- "a/\343\200\202/output/buildroot/.br2-external.in.toolchains"
++++ /dev/null
+@@ -1,5 +0,0 @@
+-#
+-# Automatically generated file; DO NOT EDIT.
+-#
+-
+-# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.mk" "b/\343\200\202/output/buildroot/.br2-external.mk"
+deleted file mode 100644
+index 61f45f74..00000000
+--- "a/\343\200\202/output/buildroot/.br2-external.mk"
++++ /dev/null
+@@ -1,10 +0,0 @@
+-#
+-# Automatically generated file; DO NOT EDIT.
+-#
+-
+-BR2_EXTERNAL ?=
+-export BR2_EXTERNAL_NAMES = 
+-BR2_EXTERNAL_DIRS = 
+-BR2_EXTERNAL_MKS = 
+-
+-# No br2-external tree defined.
+-- 
+2.43.0
+

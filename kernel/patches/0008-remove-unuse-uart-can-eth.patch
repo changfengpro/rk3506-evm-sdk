@@ -1,0 +1,57 @@
+From ada2aee07d5d5d0aedff667162e90c7a8783b215 Mon Sep 17 00:00:00 2001
+From: cxw <1739990676@qq.com>
+Date: Tue, 4 Nov 2025 11:42:46 +0800
+Subject: [PATCH 08/25] remove unuse uart\can\eth
+
+---
+ arch/arm/boot/dts/rk3506-iot-nand-v10.dts | 2 +-
+ arch/arm/boot/dts/rk3506-iot-v10.dtsi     | 6 +++---
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm/boot/dts/rk3506-iot-nand-v10.dts b/arch/arm/boot/dts/rk3506-iot-nand-v10.dts
+index e7c52f4cd605..4fd36a89aa8f 100644
+--- a/arch/arm/boot/dts/rk3506-iot-nand-v10.dts
++++ b/arch/arm/boot/dts/rk3506-iot-nand-v10.dts
+@@ -68,7 +68,7 @@ &uart3 {
+ &uart4 {
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&rm_io30_uart4_rx &rm_io31_uart4_tx>;
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ 
+diff --git a/arch/arm/boot/dts/rk3506-iot-v10.dtsi b/arch/arm/boot/dts/rk3506-iot-v10.dtsi
+index b525f98a5624..f636ac97dd7f 100644
+--- a/arch/arm/boot/dts/rk3506-iot-v10.dtsi
++++ b/arch/arm/boot/dts/rk3506-iot-v10.dtsi
+@@ -159,7 +159,7 @@ &can0 {
+ 	assigned-clock-rates = <300000000>;
+ 	pinctrl-0 = <&rm_io19_can0_tx &rm_io20_can0_rx>;
+ 	pinctrl-names = "default";
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &can1 {
+@@ -168,7 +168,7 @@ &can1 {
+ 	assigned-clock-rates = <300000000>;
+ 	pinctrl-0 = <&rm_io13_can1_tx &rm_io18_can1_rx>;
+ 	pinctrl-names = "default";
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &rga2 {
+@@ -214,7 +214,7 @@ &eth_rmii1_rx_bus2_pins
+ 		     &eth_rmii1_clk_pins>;
+ 
+ 	phy-handle = <&rmii_phy1>;
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &i2c0 {
+-- 
+2.43.0
+

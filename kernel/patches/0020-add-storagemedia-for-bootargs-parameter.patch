@@ -1,0 +1,39 @@
+From a3684dce8af7f181a289fb4bf7752a6e5963d71b Mon Sep 17 00:00:00 2001
+From: cxw <1739990676@qq.com>
+Date: Mon, 12 Jan 2026 10:35:33 +0800
+Subject: [PATCH 20/25] add storagemedia for bootargs parameter
+
+---
+ arch/arm/boot/dts/vanxoak-hd-rk3506-iot-v1.dtsi      | 2 +-
+ arch/arm/boot/dts/vanxoak-hd-rk3506g-evm-nand-v1.dts | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm/boot/dts/vanxoak-hd-rk3506-iot-v1.dtsi b/arch/arm/boot/dts/vanxoak-hd-rk3506-iot-v1.dtsi
+index 9b468d348867..062cb58d220a 100644
+--- a/arch/arm/boot/dts/vanxoak-hd-rk3506-iot-v1.dtsi
++++ b/arch/arm/boot/dts/vanxoak-hd-rk3506-iot-v1.dtsi
+@@ -13,7 +13,7 @@ / {
+ 
+ 	chosen {
+ 		//bootargs = "earlycon=uart8250,mmio32,0xff0a0000 console=ttyFIQ0 ubi.mtd=5 ubi.block=0,rootfs root=/dev/ubiblock0_0 rootfstype=squashfs rootwait snd_aloop.index=7 snd_aloop.use_raw_jiffies=1 storagemedia=mtd androidboot.storagemedia=mtd androidboot.mode=normal";
+-		bootargs = "earlycon=uart8250,mmio32,0xff0a0000 console=ttyFIQ0 ubi.mtd=5 root=ubi0:rootfs rw rootfstype=ubifs rootwait snd_aloop.index=7 snd_aloop.use_raw_jiffies=1";
++		bootargs = "storagemedia=mtd earlycon=uart8250,mmio32,0xff0a0000 console=ttyFIQ0 ubi.mtd=5 root=ubi0:rootfs rw rootfstype=ubifs rootwait snd_aloop.index=7 snd_aloop.use_raw_jiffies=1";
+ 	};
+ 
+ 	backlight: backlight {
+diff --git a/arch/arm/boot/dts/vanxoak-hd-rk3506g-evm-nand-v1.dts b/arch/arm/boot/dts/vanxoak-hd-rk3506g-evm-nand-v1.dts
+index 834d60ab01a2..c71578c8f3ff 100644
+--- a/arch/arm/boot/dts/vanxoak-hd-rk3506g-evm-nand-v1.dts
++++ b/arch/arm/boot/dts/vanxoak-hd-rk3506g-evm-nand-v1.dts
+@@ -37,7 +37,7 @@ drm_logo: drm-logo@400000 {
+ 	};
+ 
+ 	chosen {
+-		bootargs = "earlycon=uart8250,mmio32,0xff0a0000 console=ttyFIQ0 ubi.mtd=5 root=ubi0:rootfs rw rootfstype=ubifs rootwait snd_aloop.index=7 snd_aloop.use_raw_jiffies=1";
++		bootargs = "storagemedia=mtd earlycon=uart8250,mmio32,0xff0a0000 console=ttyFIQ0 ubi.mtd=5 root=ubi0:rootfs rw rootfstype=ubifs rootwait snd_aloop.index=7 snd_aloop.use_raw_jiffies=1";
+ 	};
+ };
+ 
+-- 
+2.43.0
+

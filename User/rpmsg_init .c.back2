@@ -1,0 +1,90 @@
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <linux/rpmsg.h>
+#include <errno.h>  // 引入 errno 库处理非阻塞标志
+
+#define RPMSG_SERVICE_NAME "rpmsg-mcu0-test"
+#define MCU_EPT_ADDR       0x4003
+#define LOCAL_EPT_ADDR     1024
+
+int main() {
+    int ctrl_fd, data_fd;
+    struct rpmsg_endpoint_info eptinfo;
+    char buf[512];
+    ssize_t n;
+    int tick_cnt = 0; // 节拍计数器
+
+    ctrl_fd = open("/dev/rpmsg_ctrl0", O_RDWR);
+    if (ctrl_fd < 0) {
+        perror("无法打开 /dev/rpmsg_ctrl0");
+        return 1;
+    }
+
+    memset(&eptinfo, 0, sizeof(eptinfo));
+    strncpy(eptinfo.name, RPMSG_SERVICE_NAME, sizeof(eptinfo.name));
+    eptinfo.src = LOCAL_EPT_ADDR;
+    eptinfo.dst = MCU_EPT_ADDR;
+
+    // 创建端点
+    if (ioctl(ctrl_fd, RPMSG_CREATE_EPT_IOCTL, &eptinfo) < 0) {
+        perror("创建端点失败 (可能节点已存在)");
+        // 即使失败也继续往下走，因为节点可能上一次运行遗留下来了
+    }
+
+    usleep(200000); 
+
+    // 【核心修改 1】: 在 open 时加入 O_NONBLOCK，开启非阻塞读写
+    data_fd = open("/dev/rpmsg0", O_RDWR | O_NONBLOCK);
+    if (data_fd < 0) {
+        perror("打开 /dev/rpmsg0 失败");
+        close(ctrl_fd);
+        return 1;
+    }
+
+    // 发送信号给 MCU，建立初始连接
+    write(data_fd, "ready", 6);
+    printf("[Linux] 已占领地址 %d，正在监听来自 MCU(%d) 的数据...\n", LOCAL_EPT_ADDR, MCU_EPT_ADDR);
+
+    // 【核心修改 2】: 非阻塞轮询 + 定时发送架构
+    while (1) {
+        // 1. 定时发送逻辑 (每 10 个 100ms 节拍 = 1秒)
+        if (tick_cnt % 10 == 0) {
+            const char *msg = "hello mcu";
+            // 发送 strlen + 1，把 '\0' 也发过去，方便 MCU 端直接 printf
+            int ret = write(data_fd, msg, strlen(msg) + 1); 
+            if (ret > 0) {
+                printf("[Linux TX] %s\n", msg);
+                fflush(stdout);
+            }
+        }
+
+        // 2. 非阻塞读取逻辑
+        memset(buf, 0, sizeof(buf));
+        n = read(data_fd, buf, sizeof(buf));
+        
+        if (n > 0) {
+            // 正常读到了数据
+            printf("[Linux RX] %s\n", buf); 
+            fflush(stdout);
+        } else if (n < 0) {
+            // 因为是非阻塞模式，没数据时 read 会返回 -1 并将 errno 设为 EAGAIN 或 EWOULDBLOCK
+            // 这属于正常现象，我们只抓取真正的硬件/链路错误
+            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                perror("读取发生严重错误，链路断开");
+                break;
+            }
+        }
+
+        // 3. 节拍延时 (100 毫秒)
+        usleep(100000); 
+        tick_cnt++;
+    }
+
+    close(data_fd);
+    close(ctrl_fd);
+    return 0;
+}

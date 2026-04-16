@@ -1,0 +1,25 @@
+From 0d357add3e39a281b69e0fca3ff2dcc96c898d8d Mon Sep 17 00:00:00 2001
+From: cxw <1739990676@qq.com>
+Date: Mon, 19 Jan 2026 09:19:26 +0800
+Subject: [PATCH 1/2] add mtd blk
+
+---
+ drivers/mtd/mtd_blk.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/mtd/mtd_blk.c b/drivers/mtd/mtd_blk.c
+index da6539a..62dbd53 100644
+--- a/drivers/mtd/mtd_blk.c
++++ b/drivers/mtd/mtd_blk.c
+@@ -740,6 +740,8 @@ static int mtd_blk_probe(struct udevice *udev)
+ 				break;
+ 			}
+ 		}
++		if (0x80000 == desc->lba)
++			desc->lba = 0x7fc00;
+ 	} else {
+ 		desc->lba = mtd->size >> 9;
+ 	}
+-- 
+2.43.0
+

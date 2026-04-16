@@ -1,0 +1,148 @@
+From 6b57cb5b7a143c6b37d76e2084648c9c2780e895 Mon Sep 17 00:00:00 2001
+From: changfengpro <2728019272@qq.com>
+Date: Wed, 8 Apr 2026 01:12:36 +0800
+Subject: [PATCH 2/3] =?UTF-8?q?=E6=96=B0=E5=A2=9ECGI=E5=8A=9F=E8=83=BD?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ board/rockchip/common/base/busybox.fragment            |  3 +++
+ "\343\200\202/output/buildroot/.br2-external.in.init"  |  5 +++++
+ "\343\200\202/output/buildroot/.br2-external.in.jpeg"  |  5 +++++
+ "\343\200\202/output/buildroot/.br2-external.in.linux" |  5 +++++
+ "\343\200\202/output/buildroot/.br2-external.in.menus" |  5 +++++
+ .../output/buildroot/.br2-external.in.openssl"         |  5 +++++
+ "\343\200\202/output/buildroot/.br2-external.in.paths" |  5 +++++
+ .../output/buildroot/.br2-external.in.skeleton"        |  5 +++++
+ .../output/buildroot/.br2-external.in.toolchains"      |  5 +++++
+ "\343\200\202/output/buildroot/.br2-external.mk"       | 10 ++++++++++
+ 10 files changed, 53 insertions(+)
+ create mode 100644 "\343\200\202/output/buildroot/.br2-external.in.init"
+ create mode 100644 "\343\200\202/output/buildroot/.br2-external.in.jpeg"
+ create mode 100644 "\343\200\202/output/buildroot/.br2-external.in.linux"
+ create mode 100644 "\343\200\202/output/buildroot/.br2-external.in.menus"
+ create mode 100644 "\343\200\202/output/buildroot/.br2-external.in.openssl"
+ create mode 100644 "\343\200\202/output/buildroot/.br2-external.in.paths"
+ create mode 100644 "\343\200\202/output/buildroot/.br2-external.in.skeleton"
+ create mode 100644 "\343\200\202/output/buildroot/.br2-external.in.toolchains"
+ create mode 100644 "\343\200\202/output/buildroot/.br2-external.mk"
+
+diff --git a/board/rockchip/common/base/busybox.fragment b/board/rockchip/common/base/busybox.fragment
+index d64a4489..b585917c 100644
+--- a/board/rockchip/common/base/busybox.fragment
++++ b/board/rockchip/common/base/busybox.fragment
+@@ -17,3 +17,6 @@ CONFIG_FEATURE_SHOW_THREADS=y
+ CONFIG_FEATURE_MOUNT_HELPERS=y
+ CONFIG_FEATURE_MOUNT_LABEL=y
+ CONFIG_HTTPD=y
++CONFIG_FEATURE_HTTPD_CGI=y
++CONFIG_FEATURE_HTTPD_SET_REMOTE_PORT_TO_ENV=y
++CONFIG_FEATURE_HTTPD_CONFIG_WITH_SCRIPT_INTERPR=y
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.init" "b/\343\200\202/output/buildroot/.br2-external.in.init"
+new file mode 100644
+index 00000000..19d58283
+--- /dev/null
++++ "b/\343\200\202/output/buildroot/.br2-external.in.init"
+@@ -0,0 +1,5 @@
++#
++# Automatically generated file; DO NOT EDIT.
++#
++
++# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.jpeg" "b/\343\200\202/output/buildroot/.br2-external.in.jpeg"
+new file mode 100644
+index 00000000..19d58283
+--- /dev/null
++++ "b/\343\200\202/output/buildroot/.br2-external.in.jpeg"
+@@ -0,0 +1,5 @@
++#
++# Automatically generated file; DO NOT EDIT.
++#
++
++# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.linux" "b/\343\200\202/output/buildroot/.br2-external.in.linux"
+new file mode 100644
+index 00000000..19d58283
+--- /dev/null
++++ "b/\343\200\202/output/buildroot/.br2-external.in.linux"
+@@ -0,0 +1,5 @@
++#
++# Automatically generated file; DO NOT EDIT.
++#
++
++# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.menus" "b/\343\200\202/output/buildroot/.br2-external.in.menus"
+new file mode 100644
+index 00000000..19d58283
+--- /dev/null
++++ "b/\343\200\202/output/buildroot/.br2-external.in.menus"
+@@ -0,0 +1,5 @@
++#
++# Automatically generated file; DO NOT EDIT.
++#
++
++# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.openssl" "b/\343\200\202/output/buildroot/.br2-external.in.openssl"
+new file mode 100644
+index 00000000..19d58283
+--- /dev/null
++++ "b/\343\200\202/output/buildroot/.br2-external.in.openssl"
+@@ -0,0 +1,5 @@
++#
++# Automatically generated file; DO NOT EDIT.
++#
++
++# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.paths" "b/\343\200\202/output/buildroot/.br2-external.in.paths"
+new file mode 100644
+index 00000000..19d58283
+--- /dev/null
++++ "b/\343\200\202/output/buildroot/.br2-external.in.paths"
+@@ -0,0 +1,5 @@
++#
++# Automatically generated file; DO NOT EDIT.
++#
++
++# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.skeleton" "b/\343\200\202/output/buildroot/.br2-external.in.skeleton"
+new file mode 100644
+index 00000000..19d58283
+--- /dev/null
++++ "b/\343\200\202/output/buildroot/.br2-external.in.skeleton"
+@@ -0,0 +1,5 @@
++#
++# Automatically generated file; DO NOT EDIT.
++#
++
++# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.in.toolchains" "b/\343\200\202/output/buildroot/.br2-external.in.toolchains"
+new file mode 100644
+index 00000000..19d58283
+--- /dev/null
++++ "b/\343\200\202/output/buildroot/.br2-external.in.toolchains"
+@@ -0,0 +1,5 @@
++#
++# Automatically generated file; DO NOT EDIT.
++#
++
++# No br2-external tree defined.
+diff --git "a/\343\200\202/output/buildroot/.br2-external.mk" "b/\343\200\202/output/buildroot/.br2-external.mk"
+new file mode 100644
+index 00000000..61f45f74
+--- /dev/null
++++ "b/\343\200\202/output/buildroot/.br2-external.mk"
+@@ -0,0 +1,10 @@
++#
++# Automatically generated file; DO NOT EDIT.
++#
++
++BR2_EXTERNAL ?=
++export BR2_EXTERNAL_NAMES = 
++BR2_EXTERNAL_DIRS = 
++BR2_EXTERNAL_MKS = 
++
++# No br2-external tree defined.
+-- 
+2.43.0
+

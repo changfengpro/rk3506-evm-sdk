@@ -1,0 +1,41 @@
+From 1c921a35836bb760f81bbfe3cf2504076c99750b Mon Sep 17 00:00:00 2001
+From: cxw <1739990676@qq.com>
+Date: Tue, 4 Nov 2025 14:13:11 +0800
+Subject: [PATCH 09/25] rename dts name for rk3506 evm nand
+
+---
+ .../dts/{rk3506-iot-nand-v10.dts => rk3506-evm-nand-v10.dts}    | 2 +-
+ arch/arm/boot/dts/{rk3506-iot-v10.dtsi => rk3506-evm-v10.dtsi}  | 0
+ .../{rk3506_iot_nand_defconfig => rk3506_evm_nand_defconfig}    | 0
+ 3 files changed, 1 insertion(+), 1 deletion(-)
+ rename arch/arm/boot/dts/{rk3506-iot-nand-v10.dts => rk3506-evm-nand-v10.dts} (97%)
+ rename arch/arm/boot/dts/{rk3506-iot-v10.dtsi => rk3506-evm-v10.dtsi} (100%)
+ rename arch/arm/configs/{rk3506_iot_nand_defconfig => rk3506_evm_nand_defconfig} (100%)
+
+diff --git a/arch/arm/boot/dts/rk3506-iot-nand-v10.dts b/arch/arm/boot/dts/rk3506-evm-nand-v10.dts
+similarity index 97%
+rename from arch/arm/boot/dts/rk3506-iot-nand-v10.dts
+rename to arch/arm/boot/dts/rk3506-evm-nand-v10.dts
+index 4fd36a89aa8f..ae51f745f672 100644
+--- a/arch/arm/boot/dts/rk3506-iot-nand-v10.dts
++++ b/arch/arm/boot/dts/rk3506-evm-nand-v10.dts
+@@ -7,7 +7,7 @@
+ 
+ #include "rk3506.dtsi"
+ //#include "rk3502.dtsi"
+-#include "rk3506-iot-v10.dtsi"
++#include "rk3506-evm-v10.dtsi"
+ #include "rk3506-evm-nand-480x800-mipi.dtsi"
+ 
+ / {
+diff --git a/arch/arm/boot/dts/rk3506-iot-v10.dtsi b/arch/arm/boot/dts/rk3506-evm-v10.dtsi
+similarity index 100%
+rename from arch/arm/boot/dts/rk3506-iot-v10.dtsi
+rename to arch/arm/boot/dts/rk3506-evm-v10.dtsi
+diff --git a/arch/arm/configs/rk3506_iot_nand_defconfig b/arch/arm/configs/rk3506_evm_nand_defconfig
+similarity index 100%
+rename from arch/arm/configs/rk3506_iot_nand_defconfig
+rename to arch/arm/configs/rk3506_evm_nand_defconfig
+-- 
+2.43.0
+
