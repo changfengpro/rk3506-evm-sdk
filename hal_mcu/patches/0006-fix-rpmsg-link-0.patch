@@ -1,0 +1,312 @@
+From 32a5ede570836192d4acc5e6004eb1e8e933176c Mon Sep 17 00:00:00 2001
+From: changfengpro <2728019272@qq.com>
+Date: Sat, 18 Apr 2026 01:46:11 +0800
+Subject: [PATCH 06/11] fix: rpmsg link 0
+
+---
+ HAL_ISSUE_LOG.md                              | 50 ++++++++++++++++++
+ project/rk3506-mcu/GCC/Makefile               |  4 +-
+ project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.c  | 52 +++++++++++--------
+ project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.h  |  4 +-
+ .../rpmsg.c => rpmsg_frame/rpmsg_frame.c}     |  2 +-
+ .../rpmsg.h => rpmsg_frame/rpmsg_frame.h}     |  0
+ project/rk3506-mcu/src/main.c                 | 37 +++++++++----
+ 7 files changed, 115 insertions(+), 34 deletions(-)
+ rename project/rk3506-mcu/modules/{rpmsg/rpmsg.c => rpmsg_frame/rpmsg_frame.c} (99%)
+ rename project/rk3506-mcu/modules/{rpmsg/rpmsg.h => rpmsg_frame/rpmsg_frame.h} (100%)
+
+diff --git a/HAL_ISSUE_LOG.md b/HAL_ISSUE_LOG.md
+index b755183..61e4209 100644
+--- a/HAL_ISSUE_LOG.md
++++ b/HAL_ISSUE_LOG.md
+@@ -203,3 +203,53 @@
+   - `CAN0->RXINT_CTRL = 0x00000001`
+   - `CAN0->WAVE_FILTER_CFG = 0x00000000`
+   - `CAN0->ATF_CTL = 0x00000001`
++
++---
++
++## [2026-04-18] 仅使用 BSP_RPMSG_Init 时 Linux 与 MCU RPMsg 不通信
++
++### 现象
++
++- 按要求放弃 `App_RPMsgTryInit()`，改为仅在启动阶段使用 `BSP_RPMSG_Init()`。
++- Linux 侧 `rpmsg_frame` 能连接到 `/dev/rpmsg0`，但一段时间内 `rpmsg_fps.log` 显示 `TX/RX = 0`。
++- J-Link 现场采样显示 RPMsg 服务状态长期未完成：`s_rpmsgServiceInitialized = 0`。
++
++### 影响
++
++- Linux 命令帧发出后 MCU 不回遥测，双方表现为“设备节点存在但业务不通”。
++- 调试上容易误判为 mailbox 或 virtio 驱动异常，增加排障时间。
++
++### 根因
++
++- 关键根因 1：`HAL_ASSERT` 在当前构建配置下可能展开为空宏。
++  - 代码若写成 `HAL_ASSERT(BSP_RPMSG_Init() == 1U)` / `HAL_ASSERT(App_RPMsgInit() == 1U)`，
++    初始化调用本身会被优化掉（副作用丢失）。
++  - 结果是 RPMsg 初始化链路未真实执行。
++- 关键根因 2：启动阶段若严格等待 link-up，App 侧 endpoint 注册时机会被阻塞，
++  在 Linux 启动时序波动时容易长时间看起来“不通”。
++
++### 修复
++
++- 文件：`project/rk3506-mcu/src/main.c`
++  - 改为“先调用再断言”：
++    - `rpmsgInitOk = BSP_RPMSG_Init(); HAL_ASSERT(rpmsgInitOk == 1U);`
++    - `rpmsgModuleOk = App_RPMsgInit(); HAL_ASSERT(rpmsgModuleOk == 1U);`
++  - 保留“只使用 BSP_RPMSG_Init”的初始化策略，未恢复 `App_RPMsgTryInit()` 轮询兜底。
++- 文件：`project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.c`
++  - `BSP_RPMSG_Init()` 调整为：先完成 `rpmsg_ns_bind`，再等待 link-up。
++  - `RPMsg_WaitLinkUp` 超时只打印错误并继续初始化流程，不再阻塞启动。
++
++### 验证要点（SSH + J-Link 闭环）
++
++- 编译：`project/rk3506-mcu/GCC` 下 `make -j12` 通过。
++- 烧录后 J-Link 采样（同一版固件）：
++  - 修复前阶段可见 `s_rpmsgServiceInitialized = 0`。
++  - Linux 持续发送命令帧后，`s_rpmsgServiceInitialized` 变为 `1`，`s_rpmsgInstanceIdx` 由 `0` 变 `1`。
++- Linux 侧执行 `/root/rpmsg_frame ...` 后，`/root/rpmsg_fps.log` 出现稳定收发：
++  - `TX` / `RX` 约 `95~97 fps`
++  - `DROP = 0`
++
++### 经验总结
++
++- 在本工程配置中，`HAL_ASSERT` 不能包裹带副作用调用。
++- 所有关键初始化应采用“显式调用 + 断言/日志分离”的写法，避免 release 构建被优化掉。
+diff --git a/project/rk3506-mcu/GCC/Makefile b/project/rk3506-mcu/GCC/Makefile
+index dfc5693..f5e0299 100644
+--- a/project/rk3506-mcu/GCC/Makefile
++++ b/project/rk3506-mcu/GCC/Makefile
+@@ -19,13 +19,13 @@ LINKER_SCRIPT := gcc_bus_m0.ld
+ INCLUDES += -I ../bsp/bsp_uart \
+             -I ../bsp/bsp_can \
+             -I ../bsp/bsp_rpmsg \
+-            -I ../modules/rpmsg
++            -I ../modules/rpmsg_frame
+ 
+ 
+ SRC_DIRS += ../bsp/bsp_uart \
+             ../bsp/bsp_can \
+             ../bsp/bsp_rpmsg \
+-            ../modules/rpmsg
++            ../modules/rpmsg_frame
+ 
+ 
+ include ../../common/GCC/Cortex-M.mk
+diff --git a/project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.c b/project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.c
+index 145f23b..7cfe6bd 100644
+--- a/project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.c
++++ b/project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.c
+@@ -253,45 +253,55 @@ static int32_t RPMsg_WaitLinkUp(uint32_t timeoutMs)
+  *
+  * 当前默认按 RK3506 MCU(remote) <-> Linux(master) 拓扑初始化，
+  * 并等待链路建立完成。
++ *
++ * @return 1 表示初始化成功，0 表示初始化失败（可由上层重试）。
+  */
+-void BSP_RPMSG_Init(void)
++uint8_t BSP_RPMSG_Init(void)
+ {
+     uint32_t shmemSize;
+     void *shmemBase;
+ 
+     if (s_rpmsgServiceInitialized != 0U) {
+-        return;
++        return 1U;
+     }
+ 
+-    shmemBase = RPMsg_GetSharedMemoryBase();
+-    shmemSize = RPMsg_GetSharedMemorySize();
++    if (s_rpmsgInstance == NULL) {
++        shmemBase = RPMsg_GetSharedMemoryBase();
++        shmemSize = RPMsg_GetSharedMemorySize();
+ 
+-    HAL_ASSERT(shmemBase != NULL);
+-    HAL_ASSERT(shmemSize >= RPMSG_POOL_SIZE);
++        HAL_ASSERT(shmemBase != NULL);
++        HAL_ASSERT(shmemSize >= RPMSG_POOL_SIZE);
+ 
+-    RPMsg_QuietStaleIrqs();
++        RPMsg_QuietStaleIrqs();
+ 
+-    s_rpmsgInstance = rpmsg_lite_remote_init(shmemBase,
+-                                             RL_PLATFORM_SET_LINK_ID(RPMSG_MASTER_ID, RPMSG_REMOTE_ID),
+-                                             RL_NO_FLAGS);
+-    HAL_ASSERT(s_rpmsgInstance != NULL);
++        s_rpmsgInstance = rpmsg_lite_remote_init(shmemBase,
++                                                 RL_PLATFORM_SET_LINK_ID(RPMSG_MASTER_ID, RPMSG_REMOTE_ID),
++                                                 RL_NO_FLAGS);
++        if (s_rpmsgInstance == NULL) {
++            HAL_DBG_ERR("rpmsg remote init failed\n");
++            return 0U;
++        }
+ 
+-    __enable_irq();
++        __enable_irq();
++    }
+ 
+-    if (RPMsg_WaitLinkUp(RPMSG_LINK_WAIT_TIMEOUT_MS) != 0) {
+-        HAL_DBG_ERR("rpmsg link: 0\n");
+-        while (1) {
+-            RPMsg_ServicePendingMailbox();
+-            HAL_DelayMs(1000);
++    if (s_rpmsgNsHandle == NULL) {
++        s_rpmsgNsHandle = rpmsg_ns_bind(s_rpmsgInstance, RPMsg_DefaultNsBindCallback, NULL);
++        if (s_rpmsgNsHandle == NULL) {
++            HAL_DBG_ERR("rpmsg ns bind failed\n");
++            return 0U;
+         }
+     }
+ 
+-    HAL_DBG("rpmsg link: 1\n");
+-
+-    s_rpmsgNsHandle = rpmsg_ns_bind(s_rpmsgInstance, RPMsg_DefaultNsBindCallback, NULL);
+-    HAL_ASSERT(s_rpmsgNsHandle != NULL);
++    if (RPMsg_WaitLinkUp(RPMSG_LINK_WAIT_TIMEOUT_MS) != 0) {
++        HAL_DBG_ERR("rpmsg link wait timeout, continue init\n");
++    } else {
++        HAL_DBG("rpmsg link: 1\n");
++    }
+ 
+     s_rpmsgServiceInitialized = 1U;
++
++    return 1U;
+ }
+ 
+ 
+diff --git a/project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.h b/project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.h
+index f1c4ae6..fd32e90 100644
+--- a/project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.h
++++ b/project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.h
+@@ -42,8 +42,10 @@ typedef struct {
+  *
+  * 当前默认按 RK3506 MCU(remote) <-> Linux(master) 拓扑初始化，
+  * 并等待链路建立完成。
++ *
++ * @return 1 表示初始化成功，0 表示初始化失败（可由上层重试）。
+  */
+-void BSP_RPMSG_Init(void);
++uint8_t BSP_RPMSG_Init(void);
+ 
+ /**
+  * @brief 查询 RPMsg 链路是否已建立。
+diff --git a/project/rk3506-mcu/modules/rpmsg/rpmsg.c b/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.c
+similarity index 99%
+rename from project/rk3506-mcu/modules/rpmsg/rpmsg.c
+rename to project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.c
+index 2a2f3dd..754b275 100644
+--- a/project/rk3506-mcu/modules/rpmsg/rpmsg.c
++++ b/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.c
+@@ -3,7 +3,7 @@
+  * Copyright (c) 2022 Rockchip Electronics Co., Ltd.
+  */
+ 
+-#include "rpmsg.h"
++#include "rpmsg_frame.h"
+ 
+ #include <stddef.h>
+ #include <stdlib.h>
+diff --git a/project/rk3506-mcu/modules/rpmsg/rpmsg.h b/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.h
+similarity index 100%
+rename from project/rk3506-mcu/modules/rpmsg/rpmsg.h
+rename to project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.h
+diff --git a/project/rk3506-mcu/src/main.c b/project/rk3506-mcu/src/main.c
+index 33a259d..0d16d0e 100644
+--- a/project/rk3506-mcu/src/main.c
++++ b/project/rk3506-mcu/src/main.c
+@@ -6,8 +6,9 @@
+ #include "hal_bsp.h"
+ #include "hal_base.h"
+ #include "bsp_uart.h"
+-#include "rpmsg.h"
++#include "rpmsg_frame.h"
+ #include "bsp_can.h"
++#include "bsp_rpmsg.h"
+ 
+ #include <string.h>
+ 
+@@ -26,13 +27,17 @@ static RPMsgFrameInstance *g_rpmsgIns;
+ 
+ static void RobotInit()
+ {
+-    // 关闭中断,防止在初始化过程中发生中断
+-    __disable_irq();
++    uint8_t rpmsgInitOk;
+ 
+     BSP_UART_Init();
+     BSP_CAN_Init();
+-    BSP_RPMSG_Init();
+-    
++
++    rpmsgInitOk = BSP_RPMSG_Init();
++    HAL_ASSERT(rpmsgInitOk == 1U);
++    if (rpmsgInitOk == 0U) {
++        HAL_DBG_ERR("bsp rpmsg init failed\n");
++    }
++
+     __enable_irq();
+ }
+ 
+@@ -59,7 +64,7 @@ static void App_RPMsgCallback(RPMsgFrameInstance *ins)
+     (void)RPMsgFrameTransmitTelemetry(ins, HAL_GetTick(), RL_BLOCK);
+ }
+ 
+-static void App_RPMsgInit(void)
++static uint8_t App_RPMsgInit(void)
+ {
+     RPMsgFrame_Init_Config_s config;
+ 
+@@ -71,9 +76,16 @@ static void App_RPMsgInit(void)
+     config.rpmsg_frame_callback = App_RPMsgCallback;
+ 
+     g_rpmsgIns = RPMsgFrameInit(&config);
+-    HAL_ASSERT(g_rpmsgIns != NULL);
++    if (g_rpmsgIns == NULL) {
++        return 0U;
++    }
++
++    HAL_DBG("app rpmsg frame ready\n");
++    return 1U;
+ }
+ 
++
++
+ #endif
+ 
+ #ifdef CAN_TEST
+@@ -132,6 +144,8 @@ static void App_CanSendTest(void)
+ 
+ int main(void)
+ {
++    uint8_t rpmsgModuleOk;
++
+     HAL_Init();
+     BSP_Init();
+     HAL_INTMUX_Init();
+@@ -139,7 +153,11 @@ int main(void)
+     RobotInit();
+ 
+ #ifdef RPMSG_TEST
+-    App_RPMsgInit();
++    rpmsgModuleOk = App_RPMsgInit();
++    HAL_ASSERT(rpmsgModuleOk == 1U);
++    if (rpmsgModuleOk == 0U) {
++        HAL_DBG_ERR("app rpmsg module init failed\n");
++    }
+ #endif
+ 
+ #ifdef CAN_TEST
+@@ -150,8 +168,9 @@ int main(void)
+     while (1) {
+ #ifdef CAN_TEST
+         App_CanSendTest();
+-        HAL_DelayMs(1);
+ #endif
++
++        HAL_DelayMs(1);
+     }
+ }
+ 
+-- 
+2.43.0
+

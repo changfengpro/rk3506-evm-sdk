@@ -1,0 +1,539 @@
+From 4dd9fba3ee83d4db841ab5af66c8ffb76b4d0130 Mon Sep 17 00:00:00 2001
+From: changfengpro <2728019272@qq.com>
+Date: Sat, 18 Apr 2026 12:23:27 +0800
+Subject: [PATCH 07/11] fix: rpmsg_frame
+
+---
+ project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.c  | 22 ++---
+ .../modules/rpmsg_frame/rpmsg_frame.c         | 96 +++++++------------
+ .../modules/rpmsg_frame/rpmsg_frame.h         | 42 ++++----
+ project/rk3506-mcu/src/main.c                 | 80 ++++++++++++----
+ 4 files changed, 128 insertions(+), 112 deletions(-)
+
+diff --git a/project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.c b/project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.c
+index 7cfe6bd..f632c72 100644
+--- a/project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.c
++++ b/project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.c
+@@ -157,9 +157,9 @@ static void RPMsg_AnnounceEndpoint(RPMsgInstance *instance)
+ 
+     ret = rpmsg_ns_announce(s_rpmsgInstance, instance->ept, instance->ept_name, RL_NS_CREATE);
+     if (ret != RL_SUCCESS) {
+-        HAL_DBG_ERR("RPMsg announce failed, ept=%lu, ret=%ld\n",
+-                    (unsigned long)instance->local_ept,
+-                    (long)ret);
++        HAL_DBG_ERR("RPMsg announce failed, ept=%u, ret=%d\n",
++                    (unsigned int)instance->local_ept,
++                    (int)ret);
+     }
+ }
+ 
+@@ -361,8 +361,8 @@ RPMsgInstance *RPMsg_Register(RPMsg_Init_Config_s *config)
+                                           RPMsg_RxCallback,
+                                           instance);
+     if (instance->ept == NULL) {
+-        HAL_DBG_ERR("RPMsg create ept failed, local_ept=%lu\n",
+-                    (unsigned long)instance->local_ept);
++        HAL_DBG_ERR("RPMsg create ept failed, local_ept=%u\n",
++                    (unsigned int)instance->local_ept);
+         free(instance);
+         return NULL;
+     }
+@@ -434,8 +434,8 @@ uint8_t RPMsg_Transmit(RPMsgInstance *instance, uint32_t timeout_ms)
+     }
+ 
+     if (remoteEpt == RPMSG_REMOTE_EPT_DYNAMIC) {
+-        HAL_DBG_ERR("RPMsg remote ept unresolved, local_ept=%lu\n",
+-                    (unsigned long)instance->local_ept);
++        HAL_DBG_ERR("RPMsg remote ept unresolved, local_ept=%u\n",
++                    (unsigned int)instance->local_ept);
+         return 0U;
+     }
+ 
+@@ -446,10 +446,10 @@ uint8_t RPMsg_Transmit(RPMsgInstance *instance, uint32_t timeout_ms)
+                           instance->tx_len,
+                           timeout_ms);
+     if (ret != RL_SUCCESS) {
+-        HAL_DBG_ERR("RPMsg send failed, local=%lu, remote=%lu, ret=%ld\n",
+-                    (unsigned long)instance->local_ept,
+-                    (unsigned long)remoteEpt,
+-                    (long)ret);
++        HAL_DBG_ERR("RPMsg send failed, local=%u, remote=%u, ret=%d\n",
++                    (unsigned int)instance->local_ept,
++                    (unsigned int)remoteEpt,
++                    (int)ret);
+         return 0U;
+     }
+ 
+diff --git a/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.c b/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.c
+index 754b275..e47beda 100644
+--- a/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.c
++++ b/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.c
+@@ -9,11 +9,6 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-static uint8_t idx = 0U; /* register idx，模块全局实例索引，在注册时使用 */
+-/* RPMsg 实例池，此处仅保存指针，实例内存在 RPMsgFrameInit 时通过 malloc 分配 */
+-static RPMsgFrameInstance *rpmsg_frame_instance[RPMSG_FRAME_MX_REGISTER_CNT] = { NULL };
+-
+-
+ /**
+  * @brief 计算 CRC16-CCITT(FALSE) 校验值。
+  * @param data 输入数据。
+@@ -50,7 +45,7 @@ static uint16_t RPMsgFrameCalcCrc16(const uint8_t *data, uint32_t len)
+  * @param instance RPMsg 业务实例。
+  * @param timestamp_ms 时间戳。
+  */
+-static void PackRPMsgTelemetryFrame(RPMsgFrameInstance *instance, uint32_t timestamp_ms)
++static void PackRPMsgStateFrame(RPMsgFrameInstance *instance, uint32_t timestamp_ms)
+ {
+ 	FrameTelemetry_t *frame;
+ 
+@@ -58,7 +53,7 @@ static void PackRPMsgTelemetryFrame(RPMsgFrameInstance *instance, uint32_t times
+ 		return;
+ 	}
+ 
+-	frame = &instance->tx_frame;
++	frame = &instance->state_frame;
+ 
+ 	frame->seq = instance->tx_seq++;
+ 	frame->timestamp_ms = timestamp_ms;
+@@ -105,7 +100,7 @@ static uint8_t DecodeRPMsgCommandFrame(RPMsgFrameInstance *instance,
+ 		return 0U;
+ 	}
+ 
+-	instance->rx_frame = frame;
++	instance->command_frame = frame;
+ 	instance->last_rx_seq = frame.seq;
+ 
+ 	return 1U;
+@@ -131,10 +126,10 @@ static void DecodeRPMsgFrame(RPMsgInstance *_instance)
+ 	}
+ 
+ 	instance->rx_ok_cnt++;
+-	instance->new_command_ready = 1U;
++	instance->has_new_command = 1U;
+ 
+-	if (instance->rpmsg_frame_callback != NULL) {
+-		instance->rpmsg_frame_callback(instance);
++	if (instance->command_callback != NULL) {
++		instance->command_callback(instance);
+ 	}
+ }
+ 
+@@ -152,11 +147,6 @@ RPMsgFrameInstance *RPMsgFrameInit(RPMsgFrame_Init_Config_s *config)
+ 		return NULL;
+ 	}
+ 
+-	if (idx >= RPMSG_FRAME_MX_REGISTER_CNT) {
+-		HAL_DBG_ERR("RPMsg Frame instance pool exhausted.\n");
+-		return NULL;
+-	}
+-
+ 	instance = (RPMsgFrameInstance *)malloc(sizeof(RPMsgFrameInstance));
+ 	if (instance == NULL) {
+ 		HAL_DBG_ERR("RPMsg Frame malloc instance failed.\n");
+@@ -164,11 +154,11 @@ RPMsgFrameInstance *RPMsgFrameInit(RPMsgFrame_Init_Config_s *config)
+ 	}
+ 	memset(instance, 0, sizeof(RPMsgFrameInstance));
+ 
+-	instance->rpmsg_frame_callback = config->rpmsg_frame_callback;
++	instance->command_callback = config->command_callback;
+ 	instance->id = config->id;
+-	instance->tx_frame.motor_count = config->telemetry_motor_count;
+-	if (instance->tx_frame.motor_count > RPMSG_FRAME_MAX_MOTOR_CNT) {
+-		instance->tx_frame.motor_count = RPMSG_FRAME_MAX_MOTOR_CNT;
++	instance->state_frame.motor_count = config->state_motor_count;
++	if (instance->state_frame.motor_count > RPMSG_FRAME_MAX_MOTOR_CNT) {
++		instance->state_frame.motor_count = RPMSG_FRAME_MAX_MOTOR_CNT;
+ 	}
+ 
+ 	memset(&rpmsgConfig, 0, sizeof(rpmsgConfig));
+@@ -184,64 +174,48 @@ RPMsgFrameInstance *RPMsgFrameInit(RPMsgFrame_Init_Config_s *config)
+ 		return NULL;
+ 	}
+ 
+-	rpmsg_frame_instance[idx++] = instance;
+-
+ 	return instance;
+ }
+ 
+ /**
+- * @brief 设置遥测帧中的电机数量。
++ * @brief 清空当前状态帧内容，但保留电机数量配置。
+  * @param instance RPMsg 业务实例。
+- * @param motor_count 电机数量，范围 0~RPMSG_FRAME_MAX_MOTOR_CNT。
+  */
+-void RPMsgFrameSetTelemetryMotorCount(RPMsgFrameInstance *instance, uint8_t motor_count)
++void RPMsgFrameResetStateFrame(RPMsgFrameInstance *instance)
+ {
++	uint8_t motorCount;
++
+ 	if (instance == NULL) {
+ 		return;
+ 	}
+ 
+-	if (motor_count > RPMSG_FRAME_MAX_MOTOR_CNT) {
+-		motor_count = RPMSG_FRAME_MAX_MOTOR_CNT;
+-	}
+-
+-	instance->tx_frame.motor_count = motor_count;
++	motorCount = instance->state_frame.motor_count;
++	memset(&instance->state_frame, 0, sizeof(instance->state_frame));
++	instance->state_frame.motor_count = motorCount;
+ }
+ 
+ /**
+- * @brief 设置遥测帧中某个电机状态。
++ * @brief 获取可由 App 层填充的状态帧缓冲区。
+  * @param instance RPMsg 业务实例。
+- * @param motor_idx 电机索引。
+- * @param state 电机状态。
+- * @return 设置成功返回 1，失败返回 0。
++ * @return 返回当前状态帧指针，失败返回 NULL。
+  */
+-uint8_t RPMsgFrameSetTelemetryMotorState(RPMsgFrameInstance *instance,
+-										  uint8_t motor_idx,
+-										  const MotorState_t *state)
++FrameTelemetry_t *RPMsgFrameGetStateFrame(RPMsgFrameInstance *instance)
+ {
+-	if ((instance == NULL) || (state == NULL)) {
+-		return 0U;
+-	}
+-
+-	if (motor_idx >= RPMSG_FRAME_MAX_MOTOR_CNT) {
+-		return 0U;
+-	}
+-
+-	instance->tx_frame.motors[motor_idx] = *state;
+-	if (instance->tx_frame.motor_count <= motor_idx) {
+-		instance->tx_frame.motor_count = (uint8_t)(motor_idx + 1U);
++	if (instance == NULL) {
++		return NULL;
+ 	}
+ 
+-	return 1U;
++	return &instance->state_frame;
+ }
+ 
+ /**
+- * @brief 发送遥测帧。
++ * @brief 发送状态帧。
+  * @param instance RPMsg 业务实例。
+  * @param timestamp_ms 帧时间戳。
+  * @param timeout_ms 发送等待超时时间。
+  * @return 发送成功返回 1，失败返回 0。
+  */
+-uint8_t RPMsgFrameTransmitTelemetry(RPMsgFrameInstance *instance,
++uint8_t RPMsgFrameTransmitStateFrame(RPMsgFrameInstance *instance,
+ 									 uint32_t timestamp_ms,
+ 									 uint32_t timeout_ms)
+ {
+@@ -249,9 +223,9 @@ uint8_t RPMsgFrameTransmitTelemetry(RPMsgFrameInstance *instance,
+ 		return 0U;
+ 	}
+ 
+-	PackRPMsgTelemetryFrame(instance, timestamp_ms);
++	PackRPMsgStateFrame(instance, timestamp_ms);
+ 
+-	memcpy(instance->rpmsg_ins->tx_buff, &instance->tx_frame, sizeof(FrameTelemetry_t));
++	memcpy(instance->rpmsg_ins->tx_buff, &instance->state_frame, sizeof(FrameTelemetry_t));
+ 	RPMsg_SetTxLen(instance->rpmsg_ins, sizeof(FrameTelemetry_t));
+ 
+ 	if (RPMsg_Transmit(instance->rpmsg_ins, timeout_ms) == 0U) {
+@@ -274,32 +248,32 @@ uint8_t RPMsgFrameHasNewCommand(RPMsgFrameInstance *instance)
+ 		return 0U;
+ 	}
+ 
+-	return instance->new_command_ready;
++	return instance->has_new_command;
+ }
+ 
+ /**
+  * @brief 获取最近一次通过 CRC 校验的命令帧。
+  * @param instance RPMsg 业务实例。
+  * @param command 输出命令帧缓冲区。
+- * @param clear_new_flag 是否在读取后清除 new_command_ready 标记。
++ * @param clear_new_flag 是否在读取后清除 has_new_command 标记。
+  * @return 获取成功返回 1，失败返回 0。
+  */
+-uint8_t RPMsgFrameGetCommand(RPMsgFrameInstance *instance,
+-							  FrameCommand_t *command,
+-							  uint8_t clear_new_flag)
++uint8_t RPMsgFrameGetCommandFrame(RPMsgFrameInstance *instance,
++								  FrameCommand_t *command,
++								  uint8_t clear_new_flag)
+ {
+ 	if ((instance == NULL) || (command == NULL)) {
+ 		return 0U;
+ 	}
+ 
+-	if (instance->new_command_ready == 0U) {
++	if (instance->has_new_command == 0U) {
+ 		return 0U;
+ 	}
+ 
+-	*command = instance->rx_frame;
++	*command = instance->command_frame;
+ 
+ 	if (clear_new_flag != 0U) {
+-		instance->new_command_ready = 0U;
++		instance->has_new_command = 0U;
+ 	}
+ 
+ 	return 1U;
+diff --git a/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.h b/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.h
+index 3275090..158a0c7 100644
+--- a/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.h
++++ b/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.h
+@@ -8,8 +8,7 @@
+ 
+ #include "bsp_rpmsg.h"
+ 
+-#define RPMSG_FRAME_MX_REGISTER_CNT 4U
+-#define RPMSG_FRAME_MAX_MOTOR_CNT   4U
++#define RPMSG_FRAME_MAX_MOTOR_CNT 4U
+ 
+ typedef struct __attribute__((packed)) {
+ 	uint8_t motor_id;
+@@ -53,14 +52,14 @@ struct RPMsgFrameInstance {
+ 	RPMsgInstance *rpmsg_ins;
+ 	uint16_t tx_seq;
+ 	uint16_t last_rx_seq;
+-	uint8_t new_command_ready;
+-	FrameTelemetry_t tx_frame;
+-	FrameCommand_t rx_frame;
++	uint8_t has_new_command;
++	FrameTelemetry_t state_frame;
++	FrameCommand_t command_frame;
+ 	uint32_t tx_ok_cnt;
+ 	uint32_t tx_err_cnt;
+ 	uint32_t rx_ok_cnt;
+ 	uint32_t rx_drop_cnt;
+-	RPMsgFrame_Callback rpmsg_frame_callback;
++	RPMsgFrame_Callback command_callback;
+ 	void *id;
+ };
+ 
+@@ -68,8 +67,8 @@ typedef struct {
+ 	uint32_t local_ept;
+ 	uint32_t remote_ept;
+ 	const char *ept_name;
+-	uint8_t telemetry_motor_count;
+-	RPMsgFrame_Callback rpmsg_frame_callback;
++	uint8_t state_motor_count;
++	RPMsgFrame_Callback command_callback;
+ 	void *id;
+ } RPMsgFrame_Init_Config_s;
+ 
+@@ -85,31 +84,26 @@ typedef struct {
+ RPMsgFrameInstance *RPMsgFrameInit(RPMsgFrame_Init_Config_s *config);
+ 
+ /**
+- * @brief 设置遥测帧中的电机数量。
++ * @brief 清空当前状态帧内容，但保留电机数量配置。
+  * @param instance RPMsg 业务实例。
+- * @param motor_count 电机数量，范围 0~RPMSG_FRAME_MAX_MOTOR_CNT。
+  */
+-void RPMsgFrameSetTelemetryMotorCount(RPMsgFrameInstance *instance, uint8_t motor_count);
++void RPMsgFrameResetStateFrame(RPMsgFrameInstance *instance);
+ 
+ /**
+- * @brief 设置遥测帧中某个电机状态。
++ * @brief 获取可由 App 层填充的状态帧缓冲区。
+  * @param instance RPMsg 业务实例。
+- * @param motor_idx 电机索引。
+- * @param state 电机状态。
+- * @return 设置成功返回 1，失败返回 0。
++ * @return 返回当前状态帧指针，失败返回 NULL。
+  */
+-uint8_t RPMsgFrameSetTelemetryMotorState(RPMsgFrameInstance *instance,
+-										  uint8_t motor_idx,
+-										  const MotorState_t *state);
++FrameTelemetry_t *RPMsgFrameGetStateFrame(RPMsgFrameInstance *instance);
+ 
+ /**
+- * @brief 发送遥测帧。
++ * @brief 发送状态帧。
+  * @param instance RPMsg 业务实例。
+  * @param timestamp_ms 帧时间戳。
+  * @param timeout_ms 发送等待超时时间。
+  * @return 发送成功返回 1，失败返回 0。
+  */
+-uint8_t RPMsgFrameTransmitTelemetry(RPMsgFrameInstance *instance,
++uint8_t RPMsgFrameTransmitStateFrame(RPMsgFrameInstance *instance,
+ 									 uint32_t timestamp_ms,
+ 									 uint32_t timeout_ms);
+ 
+@@ -124,11 +118,11 @@ uint8_t RPMsgFrameHasNewCommand(RPMsgFrameInstance *instance);
+  * @brief 获取最近一次通过 CRC 校验的命令帧。
+  * @param instance RPMsg 业务实例。
+  * @param command 输出命令帧缓冲区。
+- * @param clear_new_flag 是否在读取后清除 new_command_ready 标记。
++ * @param clear_new_flag 是否在读取后清除 has_new_command 标记。
+  * @return 获取成功返回 1，失败返回 0。
+  */
+-uint8_t RPMsgFrameGetCommand(RPMsgFrameInstance *instance,
+-							  FrameCommand_t *command,
+-							  uint8_t clear_new_flag);
++uint8_t RPMsgFrameGetCommandFrame(RPMsgFrameInstance *instance,
++								  FrameCommand_t *command,
++								  uint8_t clear_new_flag);
+ 
+ #endif /* __FRAME_RPMSG_H */
+diff --git a/project/rk3506-mcu/src/main.c b/project/rk3506-mcu/src/main.c
+index 0d16d0e..95c150a 100644
+--- a/project/rk3506-mcu/src/main.c
++++ b/project/rk3506-mcu/src/main.c
+@@ -23,6 +23,12 @@
+ #define APP_RPMSG_TEMP_C        35
+ 
+ static RPMsgFrameInstance *g_rpmsgIns;
++volatile uint32_t g_appRpmsgCmdCnt;
++volatile uint32_t g_appRpmsgTxCnt;
++volatile uint32_t g_appRpmsgTxErrCnt;
++volatile RPMsgFrameInstance *g_dbgRpmsgIns;
++volatile FrameCommand_t g_dbgLastRpmsgCommand;
++volatile FrameTelemetry_t g_dbgLastRpmsgState;
+ 
+ 
+ static void RobotInit()
+@@ -31,37 +37,72 @@ static void RobotInit()
+ 
+     BSP_UART_Init();
+     BSP_CAN_Init();
+-
+     rpmsgInitOk = BSP_RPMSG_Init();
+     HAL_ASSERT(rpmsgInitOk == 1U);
+     if (rpmsgInitOk == 0U) {
+         HAL_DBG_ERR("bsp rpmsg init failed\n");
+     }
+ 
++
+     __enable_irq();
+ }
+ 
++static void App_RPMsgBuildStateFrame(RPMsgFrameInstance *ins, const FrameCommand_t *command)
++{
++    FrameTelemetry_t *stateFrame;
++    uint8_t motorIdx;
++    uint8_t motorCount;
++
++    if ((ins == NULL) || (command == NULL)) {
++        return;
++    }
++
++    stateFrame = RPMsgFrameGetStateFrame(ins);
++    if (stateFrame == NULL) {
++        return;
++    }
++
++    RPMsgFrameResetStateFrame(ins);
++
++    motorCount = command->motor_count;
++    if (motorCount > RPMSG_FRAME_MAX_MOTOR_CNT) {
++        motorCount = RPMSG_FRAME_MAX_MOTOR_CNT;
++    }
++
++    stateFrame->motor_count = motorCount;
++
++    for (motorIdx = 0U; motorIdx < motorCount; motorIdx++) {
++        const MotorCmd_t *motorCmd = &command->motors[motorIdx];
++        MotorState_t *motorState = &stateFrame->motors[motorIdx];
++
++        motorState->motor_id = motorCmd->motor_id;
++        motorState->position_q16 = motorCmd->target_position_q16;
++        motorState->velocity_q16 = motorCmd->target_velocity_q16;
++        motorState->torque_q8 = motorCmd->target_torque_q8;
++        motorState->temperature_c = APP_RPMSG_TEMP_C;
++        motorState->status_flags = motorCmd->ctrl_flags;
++    }
++}
++
+ static void App_RPMsgCallback(RPMsgFrameInstance *ins)
+ {
+     FrameCommand_t command;
+-    MotorState_t state;
+ 
+-    if ((ins == NULL) || (RPMsgFrameGetCommand(ins, &command, 1U) == 0U)) {
++    if ((ins == NULL) || (RPMsgFrameGetCommandFrame(ins, &command, 1U) == 0U)) {
+         return;
+     }
+ 
+-    memset(&state, 0, sizeof(state));
+-    state.temperature_c = APP_RPMSG_TEMP_C;
+-    if (command.motor_count > 0U) {
+-        state.motor_id = command.motors[0].motor_id;
+-        state.position_q16 = command.motors[0].target_position_q16;
+-        state.velocity_q16 = command.motors[0].target_velocity_q16;
+-        state.torque_q8 = command.motors[0].target_torque_q8;
+-        state.status_flags = command.motors[0].ctrl_flags;
++    g_dbgRpmsgIns = ins;
++    memcpy((void *)&g_dbgLastRpmsgCommand, &command, sizeof(command));
++    g_appRpmsgCmdCnt++;
++    App_RPMsgBuildStateFrame(ins, &command);
++    if (RPMsgFrameTransmitStateFrame(ins, HAL_GetTick(), RL_BLOCK) == 0U) {
++        g_appRpmsgTxErrCnt++;
++        return;
+     }
+ 
+-    (void)RPMsgFrameSetTelemetryMotorState(ins, 0U, &state);
+-    (void)RPMsgFrameTransmitTelemetry(ins, HAL_GetTick(), RL_BLOCK);
++    memcpy((void *)&g_dbgLastRpmsgState, &ins->state_frame, sizeof(ins->state_frame));
++    g_appRpmsgTxCnt++;
+ }
+ 
+ static uint8_t App_RPMsgInit(void)
+@@ -72,10 +113,11 @@ static uint8_t App_RPMsgInit(void)
+     config.local_ept = APP_RPMSG_LOCAL_EPT;
+     config.remote_ept = RPMSG_REMOTE_EPT_DYNAMIC;
+     config.ept_name = APP_RPMSG_SERVICE_NAME;
+-    config.telemetry_motor_count = APP_RPMSG_MOTOR_CNT;
+-    config.rpmsg_frame_callback = App_RPMsgCallback;
++    config.state_motor_count = APP_RPMSG_MOTOR_CNT;
++    config.command_callback = App_RPMsgCallback;
+ 
+     g_rpmsgIns = RPMsgFrameInit(&config);
++    g_dbgRpmsgIns = g_rpmsgIns;
+     if (g_rpmsgIns == NULL) {
+         return 0U;
+     }
+@@ -94,10 +136,14 @@ static uint8_t App_RPMsgInit(void)
+ #define APP_CAN_RX_ID  0x201U
+ 
+ static CANInstance *g_canIns;
++volatile uint32_t g_appCanTxCnt;
++volatile uint32_t g_appCanTxErrCnt;
++volatile uint32_t g_appCanRxCnt;
+ 
+ static void App_CanCallback(CANInstance *ins)
+ {
+     (void)ins;
++    g_appCanRxCnt++;
+     HAL_DBG("can rx ok\n");
+ }
+ 
+@@ -135,9 +181,12 @@ static void App_CanSendTest(void)
+     g_canIns->tx_buff[7] = 0x04U;
+ 
+     if (CANTransmit(g_canIns, 1000U) == 0U) {
++        g_appCanTxErrCnt++;
+         HAL_DBG_ERR("can tx err\n");
++        return;
+     }
+ 
++    g_appCanTxCnt++;
+     counter++;
+ }
+ #endif
+@@ -169,7 +218,6 @@ int main(void)
+ #ifdef CAN_TEST
+         App_CanSendTest();
+ #endif
+-
+         HAL_DelayMs(1);
+     }
+ }
+-- 
+2.43.0
+

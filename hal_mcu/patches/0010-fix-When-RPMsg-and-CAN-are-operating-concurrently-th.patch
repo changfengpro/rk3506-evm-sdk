@@ -1,0 +1,469 @@
+From eca9b77239be05ae5c8b982690ce707c10fd4fa1 Mon Sep 17 00:00:00 2001
+From: changfengpro <2728019272@qq.com>
+Date: Sat, 18 Apr 2026 17:34:29 +0800
+Subject: [PATCH 10/11] fix: When RPMsg and CAN are operating concurrently, the
+ CAN RX does not trigger (the INTMUX OUT0 distribution link is wrongly taken
+ over)
+
+---
+ HAL_ISSUE_LOG.md                         |  80 +++++++++++++
+ project/rk3506-mcu/bsp/bsp_can/bsp_can.c | 136 ++++++++++++-----------
+ project/rk3506-mcu/src/main.c            | 101 ++++++++++++-----
+ 3 files changed, 223 insertions(+), 94 deletions(-)
+
+diff --git a/HAL_ISSUE_LOG.md b/HAL_ISSUE_LOG.md
+index 6c9e6c7..5acefa5 100644
+--- a/HAL_ISSUE_LOG.md
++++ b/HAL_ISSUE_LOG.md
+@@ -414,3 +414,83 @@
+   - 是否有依赖该头文件的对象文件未重编
+   - 是否存在同一固件内的新旧结构体布局混用
+ - 对协议类头文件，构建系统必须具备 `.d` 依赖文件追踪，否则很容易出现隐蔽 ABI 问题。
++
++---
++
++## [2026-04-18] RPMsg 与 CAN 并发时 CAN RX 不触发（INTMUX OUT0 分发链路被错误接管）
++
++### 现象
++
++- MCU 工程同时打开 `RPMSG_TEST` 与 `CAN_TEST`。
++- Linux 板端 `/root/rpmsg_frame -i 7 -T HT04 -m TORQUE -p 1.0 -v -0.5 -t 1.25` 能稳定运行。
++- Linux 侧 `rpmsg_fps.log` 长时间稳定显示 `TX/RX` 同步，约 `459~462 fps`，`DROP = 0`。
++- 主机侧 `candump can0` 能持续看到 MCU 发出的 `0x200` 报文，说明 `CAN TX` 正常。
++- 但主机侧单发 `cansend can0 201#...` 后，MCU 侧 `App_CanCallback()` 不进入，`g_appCanRxCnt` 不增长，看起来像“CAN 只能发不能收”。
++
++### 影响
++
++- RPMsg 与 CAN 并发联调时，表面上像是 RPMsg 正常、CAN 半瘫痪。
++- 由于 `CAN TX` 明明正常，现场很容易先怀疑过滤器、波特率、USB2CAN 或业务回调，而不是中断分发本身。
++- 如果只看总线波形，不看 MCU 内部计数，排障会反复绕圈。
++
++### 根因
++
++- 文件：`project/rk3506-mcu/bsp/bsp_can/bsp_can.c`
++- 当时 `bsp_can` 接管了 `INTMUX_OUT0_IRQn` 等 `INTMUX_OUTx` 中断入口，改成走自定义 `CAN_INTMUX_OUTx_IRQHandler()`。
++- 这层自定义入口内部再调用 `HAL_INTMUX_DirectDispatch()`，但现场固件实际走到的这条调用链没有把中断真正分发到 `CANINTMUXAdapter()`。
++- 因此坏现场会出现非常迷惑的状态：
++  - `CAN0->INT` 已经挂着 `RX_FINISH`
++  - `INTMUX->INT_FLAG_GROUP` 已经置位
++  - NVIC 侧对应 `INTMUX_OUT0_IRQn` 也 pending
++  - 但 `CANINTMUXAdapter()` 和 `App_CanCallback()` 仍然不执行
++- 同一轮联调中，还需要把 `CANAddFilter()` 真正落成 RK3506 的硬件 `ATF` 精确过滤，而不是空函数占位。这样每个 `CANInstance` 都能按 `rx_id` 分配独立的硬件过滤槽，接收行为与旧 bxCAN `IDLIST` 习惯保持一致。
++
++### 修复
++
++- 文件：`project/rk3506-mcu/bsp/bsp_can/bsp_can.c`
++- 不再由 `bsp_can` 覆盖 `INTMUX_OUT0/1/2/3_IRQn` 的 NVIC handler。
++- `CANConfigIntmuxOutputIRQ()` 不再调用 `HAL_NVIC_SetIRQHandler()` 强行接管 `INTMUX_OUTx`。
++- 恢复 HAL 默认分发路径：
++  - `HAL_INTMUX_OUTx_Handler() -> INTMUX_Dispatch()`
++  - 再由 `HAL_INTMUX_SetIRQHandler(dev->irqNum, CANINTMUXAdapter, NULL)` 把源中断交给 CAN BSP
++- `CANAddFilter()` 改为按控制器维护 RK3506 硬件 `ATF` 槽位：
++  - `CAN0/CAN1` 各自维护 `filter_idx`
++  - 每注册一个实例，就写入一组 `ATF[slot] / ATFM[slot]`
++  - 清 `ATF_CTL` 对应 bit，启用该槽位
++  - 实现对 `instance->rx_id` 的标准帧精确匹配
++
++### 验证要点
++
++- Linux 板端启动后，`/root/rpmsg_fps.log` 稳定出现：
++  - `TX: 462 fps | RX: 462 fps | DROP: 0`
++  - `TX: 460 fps | RX: 460 fps | DROP: 0`
++- 主机侧 `candump -L can0,200:7FF` 持续看到 MCU 发包，例如：
++  - `can0 200#A55A7B8401020304`
++  - `can0 200#A55A7C8301020304`
++- 主机侧执行：
++  - `cansend can0 201#1122334455667788`
++- 随后用 J-Link 读取 MCU 变量，可见：
++  - `g_can_last_rx_data = 44 33 22 11 88 77 66 55`
++  - `g_can_last_rx_dlc = 8`
++  - `g_can_last_rx_std_id = 0x201`
++  - `g_can_rx_irq_cnt` 增长
++  - `g_appCanRxCnt` 增长
++- 再执行：
++  - `cansend can0 201#DEADBEEF01020304`
++- J-Link 再次读取，可见：
++  - `g_can_last_rx_data = EF BE AD DE 04 03 02 01`
++  - `g_can_rx_irq_cnt` 与 `g_appCanRxCnt` 再次增长
++- 这证明：
++  - RPMsg 并发运行未受影响
++  - CAN `TX` 持续正常
++  - CAN `RX` 已经真正走通到 MCU 业务回调
++
++### 经验总结
++
++- 在 RK3506 这套 HAL 里，`INTMUX OUT` 中断不要被 BSP 私自接管，优先复用 HAL 默认 `HAL_INTMUX_OUTx_Handler()`。
++- 判断 CAN 接收是否真的打通，不能只看总线和 pending 位，最好同时看 MCU 侧：
++  - `g_can_last_rx_data`
++  - `g_can_last_rx_std_id`
++  - `g_can_rx_irq_cnt`
++  - `g_appCanRxCnt`
++- 修改固件后再做 J-Link 变量读取时，要以当前 `TestDemo.elf` 重新取地址，不能沿用旧版符号地址。
+diff --git a/project/rk3506-mcu/bsp/bsp_can/bsp_can.c b/project/rk3506-mcu/bsp/bsp_can/bsp_can.c
+index d5ef310..e1b7f11 100644
+--- a/project/rk3506-mcu/bsp/bsp_can/bsp_can.c
++++ b/project/rk3506-mcu/bsp/bsp_can/bsp_can.c
+@@ -18,6 +18,7 @@ extern const struct HAL_CANFD_DEV g_can1Dev;
+ #define CAN_SCLK_24M_MAX_HZ     25000000U
+ #define CAN_RX_DRAIN_LIMIT      16U
+ #define CAN_CLASSIC_DLC_MAX     8U
++#define CAN_ATF_SLOT_COUNT      5U
+ #define CAN_INTMUX_OUT_COUNT    INTMUX_NUM_OUT_PER_CON
+ #define CAN_INT_VALID_MASK      0x000FFFFFU
+ 
+@@ -311,7 +312,7 @@ static void CANInitController(const struct HAL_CANFD_DEV *dev, struct CANFD_CONF
+      */
+     WRITE_REG(dev->pReg->WAVE_FILTER_CFG, 0U);
+     WRITE_REG(dev->pReg->RXINT_CTRL, 1U);
+-    WRITE_REG(dev->pReg->ATF_CTL, CAN_ATF_CTL_ATF0_EN_MASK);
++    WRITE_REG(dev->pReg->ATF_CTL, 0x1FU);
+ 
+     WRITE_REG(dev->pReg->INT_MASK, CAN_INT_VALID_MASK);
+     WRITE_REG(dev->pReg->INT, CAN_INT_VALID_MASK);
+@@ -321,16 +322,56 @@ static void CANInitController(const struct HAL_CANFD_DEV *dev, struct CANFD_CONF
+ }
+ 
+ /**
+- * @brief 添加过滤器以实现对特定id的报文的接收,会被CANRegister()调用
++ * @brief 为注册实例分配一个 RK3506 CAN 硬件接收过滤槽。
+  *
+- * @note RK3506 当前接收路径采用“统一取包 + 软件分发”的方式，
+- *       这里保留注册阶段入口，便于接口风格和后续扩展保持一致。
++ * @note 每个 CAN 控制器独立维护 ATF[5] 过滤槽。
++ *       每注册一个实例，就占用一个槽位，并将该槽配置成
++ *       “仅匹配 instance->rx_id 的标准帧”。
+  *
+  * @param instance can instance owned by specific module
+  */
+ static void CANAddFilter(CANInstance *instance)
+ {
+-    (void)instance;
++    static uint8_t can0_filter_idx = 0U;
++    static uint8_t can1_filter_idx = 0U;
++    uint8_t *filter_idx;
++    uint32_t slot;
++    uint32_t atfCtl;
++
++    if ((instance == NULL) || (instance->can_handle == NULL)) {
++        return;
++    }
++
++    if (instance->can_handle == g_can0Dev.pReg) {
++        filter_idx = &can0_filter_idx;
++    } else if (instance->can_handle == g_can1Dev.pReg) {
++        filter_idx = &can1_filter_idx;
++    } else {
++        return;
++    }
++
++    slot = *filter_idx;
++    if (slot >= CAN_ATF_SLOT_COUNT) {
++        return;
++    }
++
++    /*
++     * RK3576/RK3506 ATF list mode is closest to the old bxCAN IDLIST usage:
++     * one hardware slot keeps two exact IDs. We write the same rx_id twice so
++     * this slot only accepts the target standard ID.
++     *
++     * ATF_CTL bit semantics follow the Linux driver:
++     * a bit value of 1 disables the corresponding filter slot.
++     */
++    WRITE_REG(instance->can_handle->ATF[slot], instance->rx_id & CAN_ATF0_ID_MASK);
++    WRITE_REG(instance->can_handle->ATFM[slot],
++              (instance->rx_id & CAN_ATFM0_ID_MASK) | CAN_ATFM0_MASK_MASK);
++
++    atfCtl = READ_REG(instance->can_handle->ATF_CTL);
++    atfCtl &= ~(1UL << slot);
++    WRITE_REG(instance->can_handle->ATF_CTL, atfCtl);
++
++    *filter_idx = (uint8_t)(slot + 1U);
+ }
+ 
+ /**
+@@ -391,6 +432,15 @@ static void CANDispatchRxMessage(struct CAN_REG *pReg, const struct CANFD_MSG *r
+     }
+ }
+ 
++volatile uint32_t g_can_cnt = 0U; /* for debug */
++volatile uint32_t g_can_rx_irq_cnt = 0U; /* for debug */
++volatile uint32_t g_can_last_rx_std_id = 0U; /* for debug */
++volatile uint32_t g_can_last_rx_dlc = 0U; /* for debug */
++volatile uint8_t g_can_last_rx_data[8] = { 0U }; /* for debug */
++volatile uint32_t g_can_irq_entry_cnt = 0U; /* for debug */
++volatile uint32_t g_can_last_isr = 0U; /* for debug */
++volatile uint32_t g_can_last_str_state = 0U; /* for debug */
++
+ /**
+  * @brief 尽快取空当前接收 FIFO 中的报文。
+  * @param pReg CAN 控制器基址。
+@@ -403,6 +453,8 @@ static void CANDrainRxFifo(struct CAN_REG *pReg)
+         uint32_t strState = READ_REG(pReg->STR_STATE);
+         struct CANFD_MSG rx_msg = { 0 };
+ 
++        g_can_last_str_state = strState;
++
+         /*
+          * On RK3506 the INTM_FRAME_CNT field reflects storage occupancy,
+          * not a literal number of complete CAN frames. Use the empty flag
+@@ -417,13 +469,21 @@ static void CANDrainRxFifo(struct CAN_REG *pReg)
+         }
+ 
+         if (rx_msg.ide == CANFD_ID_STANDARD) {
++            uint8_t copyLen = rx_msg.dlc;
++
++            g_can_rx_irq_cnt++;
++            g_can_last_rx_std_id = rx_msg.stdId;
++            g_can_last_rx_dlc = rx_msg.dlc;
++            if (copyLen > sizeof(g_can_last_rx_data)) {
++                copyLen = sizeof(g_can_last_rx_data);
++            }
++            memset((void *)g_can_last_rx_data, 0, sizeof(g_can_last_rx_data));
++            memcpy((void *)g_can_last_rx_data, rx_msg.data, copyLen);
+             CANDispatchRxMessage(pReg, &rx_msg);
+         }
+     }
+ }
+ 
+-volatile uint32_t g_can_cnt = 0U; /* for debug */
+-
+ /**
+  * @brief 处理单个 CAN 控制器的发送中断。
+  * @param pReg CAN 控制器基址。
+@@ -458,6 +518,9 @@ static void CANCommonIRQHandler(struct CAN_REG *pReg)
+ {
+     uint32_t isr = HAL_CANFD_GetInterrupt(pReg);
+ 
++    g_can_irq_entry_cnt++;
++    g_can_last_isr = isr;
++
+     if (((s_canInterruptEnableMask & CAN_INTERRUPT_TX) != 0U) &&
+         ((isr & CAN_TX_EVENT_MASK) != 0U)) {
+         CANTxIRQHandler(pReg, isr);
+@@ -469,61 +532,6 @@ static void CANCommonIRQHandler(struct CAN_REG *pReg)
+     }
+ }
+ 
+-/**
+- * @brief INTMUX 输出 0 中断入口。
+- */
+-static void CAN_INTMUX_OUT0_IRQHandler(void)
+-{
+-    HAL_INTMUX_DirectDispatch(0U);
+-}
+-
+-/**
+- * @brief INTMUX 输出 1 中断入口。
+- */
+-static void CAN_INTMUX_OUT1_IRQHandler(void)
+-{
+-    HAL_INTMUX_DirectDispatch(1U);
+-}
+-
+-/**
+- * @brief INTMUX 输出 2 中断入口。
+- */
+-static void CAN_INTMUX_OUT2_IRQHandler(void)
+-{
+-    HAL_INTMUX_DirectDispatch(2U);
+-}
+-
+-/**
+- * @brief INTMUX 输出 3 中断入口。
+- */
+-static void CAN_INTMUX_OUT3_IRQHandler(void)
+-{
+-    HAL_INTMUX_DirectDispatch(3U);
+-}
+-
+-/**
+- * @brief 获取 INTMUX 输出中断对应的实际 ISR。
+- * @param outIrq INTMUX 输出中断号。
+- * @return NVIC_IRQHandler。
+- */
+-static NVIC_IRQHandler CANGetIntmuxOutIRQHandler(IRQn_Type outIrq)
+-{
+-    if (outIrq == INTMUX_OUT0_IRQn) {
+-        return CAN_INTMUX_OUT0_IRQHandler;
+-    }
+-    if (outIrq == INTMUX_OUT1_IRQn) {
+-        return CAN_INTMUX_OUT1_IRQHandler;
+-    }
+-    if (outIrq == INTMUX_OUT2_IRQn) {
+-        return CAN_INTMUX_OUT2_IRQHandler;
+-    }
+-    if (outIrq == INTMUX_OUT3_IRQn) {
+-        return CAN_INTMUX_OUT3_IRQHandler;
+-    }
+-
+-    return NULL;
+-}
+-
+ /**
+  * @brief 配置当前 CAN 使用到的 INTMUX 输出中断。
+  * @param srcIrq CAN 源中断号。
+@@ -532,11 +540,10 @@ static void CANConfigIntmuxOutputIRQ(uint32_t srcIrq)
+ {
+     uint32_t outIdx = CANGetIntmuxOutIndex(srcIrq);
+     IRQn_Type outIrq = CANGetIntmuxOutIRQ(srcIrq);
+-    NVIC_IRQHandler handler = CANGetIntmuxOutIRQHandler(outIrq);
+     uint32_t i;
+     uint32_t startIrq;
+ 
+-    if ((outIdx >= CAN_INTMUX_OUT_COUNT) || (handler == NULL)) {
++    if (outIdx >= CAN_INTMUX_OUT_COUNT) {
+         return;
+     }
+ 
+@@ -550,7 +557,6 @@ static void CANConfigIntmuxOutputIRQ(uint32_t srcIrq)
+         HAL_INTMUX_DisableIRQ(startIrq + i);
+     }
+ 
+-    HAL_NVIC_SetIRQHandler(outIrq, handler);
+     HAL_NVIC_ClearPendingIRQ(outIrq);
+     HAL_NVIC_SetPriority(outIrq, 1U, 0U);
+     HAL_NVIC_EnableIRQ(outIrq);
+diff --git a/project/rk3506-mcu/src/main.c b/project/rk3506-mcu/src/main.c
+index 6315d35..7a82023 100644
+--- a/project/rk3506-mcu/src/main.c
++++ b/project/rk3506-mcu/src/main.c
+@@ -108,6 +108,7 @@ static uint8_t App_RPMsgInit(void)
+         return 0U;
+     }
+ 
++    HAL_NVIC_SetPriority(INTMUX_OUT3_IRQn, 1U, 0U);
+     HAL_DBG("app rpmsg frame ready\n");
+     return 1U;
+ }
+@@ -126,6 +127,66 @@ volatile uint32_t g_appCanTxCnt;
+ volatile uint32_t g_appCanTxErrCnt;
+ volatile uint32_t g_appCanRxCnt;
+ 
++static void App_CanSwapBytesPerWord(uint8_t *dst, const uint8_t *src, uint8_t len)
++{
++    uint8_t base;
++
++    for (base = 0U; base < len; base = (uint8_t)(base + 4U)) {
++        uint8_t i;
++        uint8_t remain = (uint8_t)(len - base);
++        uint8_t chunk = (remain < 4U) ? remain : 4U;
++
++        for (i = 0U; i < chunk; i++) {
++            dst[base + i] = src[base + (chunk - 1U - i)];
++        }
++    }
++}
++
++static void App_CanSendTestISR(void)
++{
++    static uint8_t counter = 0U;
++    struct CANFD_MSG tx_msg = { 0 };
++    uint8_t raw_payload[8];
++    uint32_t cmd_state;
++
++    if (g_canIns == NULL) {
++        return;
++    }
++
++    cmd_state = READ_REG(g_canIns->can_handle->CMD);
++    if ((cmd_state & (CAN_CMD_TX0_REQ_MASK | CAN_CMD_TX1_REQ_MASK)) ==
++        (CAN_CMD_TX0_REQ_MASK | CAN_CMD_TX1_REQ_MASK)) {
++        g_appCanTxErrCnt++;
++        return;
++    }
++
++    raw_payload[0] = 0xA5U;
++    raw_payload[1] = 0x5AU;
++    raw_payload[2] = counter;
++    raw_payload[3] = (uint8_t)(~counter);
++    raw_payload[4] = 0x01U;
++    raw_payload[5] = 0x02U;
++    raw_payload[6] = 0x03U;
++    raw_payload[7] = 0x04U;
++
++    memcpy(g_canIns->tx_buff, raw_payload, sizeof(raw_payload));
++
++    tx_msg.stdId = g_canIns->tx_id;
++    tx_msg.ide = CANFD_ID_STANDARD;
++    tx_msg.rtr = CANFD_RTR_DATA;
++    tx_msg.fdf = CANFD_FORMAT;
++    tx_msg.dlc = 8U;
++    App_CanSwapBytesPerWord(tx_msg.data, raw_payload, tx_msg.dlc);
++
++    if (HAL_CANFD_Transmit(g_canIns->can_handle, &tx_msg) != HAL_OK) {
++        g_appCanTxErrCnt++;
++        return;
++    }
++
++    g_appCanTxCnt++;
++    counter++;
++}
++
+ static void App_CanCallback(CANInstance *ins)
+ {
+     (void)ins;
+@@ -143,39 +204,24 @@ static void App_CanInit(void)
+     config.rx_id = APP_CAN_RX_ID;
+     config.can_module_callback = App_CanCallback;
+ 
+-    CANSetInterruptEnable(CAN_INTERRUPT_RX);
++    CANSetInterruptEnable(CAN_INTERRUPT_ALL);
+     g_canIns = CANRegister(&config);
+     HAL_ASSERT(g_canIns != NULL);
+     CANSetDLC(g_canIns, 8U);
++
++    HAL_SYSTICK_Init();
++    HAL_NVIC_SetPriority(SysTick_IRQn, 2U, 0U);
+ }
++#endif
+ 
+-static void App_CanSendTest(void)
++void SysTick_Handler(void)
+ {
+-    static uint8_t counter = 0U;
+-
+-    if (g_canIns == NULL) {
+-        return;
+-    }
+-
+-    g_canIns->tx_buff[0] = 0xA5U;
+-    g_canIns->tx_buff[1] = 0x5AU;
+-    g_canIns->tx_buff[2] = counter;
+-    g_canIns->tx_buff[3] = (uint8_t)(~counter);
+-    g_canIns->tx_buff[4] = 0x01U;
+-    g_canIns->tx_buff[5] = 0x02U;
+-    g_canIns->tx_buff[6] = 0x03U;
+-    g_canIns->tx_buff[7] = 0x04U;
++    HAL_SYSTICK_IRQHandler();
+ 
+-    if (CANTransmit(g_canIns, 1000U) == 0U) {
+-        g_appCanTxErrCnt++;
+-        HAL_DBG_ERR("can tx err\n");
+-        return;
+-    }
+-
+-    g_appCanTxCnt++;
+-    counter++;
+-}
++#ifdef CAN_TEST
++    App_CanSendTestISR();
+ #endif
++}
+ 
+ int main(void)
+ {
+@@ -201,10 +247,7 @@ int main(void)
+ #endif
+ 
+     while (1) {
+-#ifdef CAN_TEST
+-        App_CanSendTest();
+-#endif
+-        HAL_DelayMs(1);
++        __WFI();
+     }
+ }
+ 
+-- 
+2.43.0
+
