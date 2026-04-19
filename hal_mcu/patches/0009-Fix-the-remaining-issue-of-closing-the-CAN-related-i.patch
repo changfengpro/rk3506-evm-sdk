@@ -1,7 +1,7 @@
 From 7ee98574588dac82914a533bac0dd12d52712cfd Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Sat, 18 Apr 2026 15:23:45 +0800
-Subject: [PATCH 09/13] Fix: the remaining issue of closing the CAN-related
+Subject: [PATCH 09/14] Fix: the remaining issue of closing the CAN-related
  interrupts when performing the rpmsg test.
 
 ---

@@ -35,7 +35,15 @@
 #define TX_RETRY_LIMIT          4U
 #define COMMAND_PERIOD_TICKS    1U
 #define NO_RX_RECOVERY_SECONDS  2U
+#define ENABLE_KERNEL_REBIND    0U
 #define RT_SCHED_PRIORITY       20
+#define SESSION_QUIESCE_MS      30U
+
+#if ENABLE_KERNEL_REBIND
+#define STALLED_RECOVERY_ACTION "rebind"
+#else
+#define STALLED_RECOVERY_ACTION "reconnect"
+#endif
 
 #define RPMSG_FRAME_MAX_MOTOR_CNT 20U
 #define RPMSG_FRAME_Q8_SCALE      256L
@@ -121,7 +129,7 @@ static void print_usage(const char *prog)
 {
     printf("Usage: %s [OPTIONS]\n", prog);
     printf("  -i, --motor-id <0..255>         target motor id (default: 1)\n");
-    printf("  -T, --type <name/id>            motor type: NONE/GM6020/M3508/M2006/LK9025/HT04\n");
+    printf("  -T, --type <name/id>            motor type: NONE/GM6020/M3508/M2006/LK9025/HT04 (default: M3508)\n");
     printf("  -m, --mode <name/id>            control mode: NONE/TORQUE/VELOCITY/POSITION\n");
     printf("  -p, --pos <value>               target position, decimal auto-converts to Q16\n");
     printf("  -v, --vel <value>               target velocity, decimal auto-converts to Q16\n");
@@ -422,7 +430,7 @@ static int parse_command_frame_config(int argc, char **argv, CommandFrameConfig 
 
     memset(cfg, 0, sizeof(*cfg));
     cfg->motor_id = 1U;
-    cfg->motor_type = MOTOR_TYPE_NONE;
+    cfg->motor_type = M3508;
     cfg->control_mode = MOTOR_CONTROL_MODE_NONE;
     cfg->period_ticks = COMMAND_PERIOD_TICKS;
 
@@ -662,6 +670,10 @@ static void close_session(RPMsgSession *session)
 {
     if ((session == NULL) || (session->data_fd < 0)) {
         return;
+    }
+
+    if (SESSION_QUIESCE_MS > 0U) {
+        usleep((useconds_t)SESSION_QUIESCE_MS * 1000U);
     }
 
     (void)ioctl(session->data_fd, RPMSG_DESTROY_EPT_IOCTL);
@@ -940,6 +952,7 @@ static int decode_telemetry_frame(const uint8_t *payload, ssize_t payload_len, F
     return 1;
 }
 
+#if ENABLE_KERNEL_REBIND
 static void force_kernel_rebind(void)
 {
     char cmd[256];
@@ -963,6 +976,7 @@ static void force_kernel_rebind(void)
 
     sleep(1);
 }
+#endif
 
 int main(int argc, char **argv)
 {
@@ -1103,12 +1117,15 @@ int main(int argc, char **argv)
 
             if ((session.data_fd >= 0) && (no_rx_recovery_streak >= NO_RX_RECOVERY_SECONDS)) {
                 fprintf(stderr,
-                        "[Linux] RPMsg stalled for %u s (tx_ok=%u, tx_attempt=%u), rebind.\n",
+                        "[Linux] RPMsg stalled for %u s (tx_ok=%u, tx_attempt=%u), %s.\n",
                         (unsigned int)no_rx_recovery_streak,
                         (unsigned int)tx_fps_count,
-                        (unsigned int)tx_attempt_count);
+                        (unsigned int)tx_attempt_count,
+                        STALLED_RECOVERY_ACTION);
                 close_session(&session);
+        #if ENABLE_KERNEL_REBIND
                 force_kernel_rebind();
+        #endif
                 tick_cnt = 0U;
                 no_rx_recovery_streak = 0U;
                 tx_fps_count = 0U;

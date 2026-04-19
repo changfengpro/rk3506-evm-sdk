@@ -1,7 +1,7 @@
 From 4dd9fba3ee83d4db841ab5af66c8ffb76b4d0130 Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Sat, 18 Apr 2026 12:23:27 +0800
-Subject: [PATCH 07/13] fix: rpmsg_frame
+Subject: [PATCH 07/14] fix: rpmsg_frame
 
 ---
  project/rk3506-mcu/bsp/bsp_rpmsg/bsp_rpmsg.c  | 22 ++---

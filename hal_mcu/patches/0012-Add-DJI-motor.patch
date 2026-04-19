@@ -1,7 +1,7 @@
 From ba2fe0bae66ca002d385a2eb4b56bad0388a07a5 Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Sun, 19 Apr 2026 11:49:48 +0800
-Subject: [PATCH 12/13] Add DJI motor
+Subject: [PATCH 12/14] Add DJI motor
 
 ---
  project/common/GCC/Cortex-M.mk                |   5 +-

@@ -1,7 +1,7 @@
 From 27434515b3abdfd2cdb4bab7751c7db4139333fc Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Sat, 18 Apr 2026 18:07:41 +0800
-Subject: [PATCH 11/13] Reconstruct the top-level logic
+Subject: [PATCH 11/14] Reconstruct the top-level logic
 
 ---
  project/rk3506-mcu/bsp/bsp_can/bsp_can.c      |   2 +-

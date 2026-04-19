@@ -1,7 +1,7 @@
 From eca9b77239be05ae5c8b982690ce707c10fd4fa1 Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Sat, 18 Apr 2026 17:34:29 +0800
-Subject: [PATCH 10/13] fix: When RPMsg and CAN are operating concurrently, the
+Subject: [PATCH 10/14] fix: When RPMsg and CAN are operating concurrently, the
  CAN RX does not trigger (the INTMUX OUT0 distribution link is wrongly taken
  over)
 

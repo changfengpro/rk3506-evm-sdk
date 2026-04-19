@@ -1,7 +1,7 @@
 From 1af9f90da461a1dc9646f1389f89b2126147ffdc Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Sun, 19 Apr 2026 15:01:18 +0800
-Subject: [PATCH 13/13] Optimize: the calls of rpmsg and CAN
+Subject: [PATCH 13/14] Optimize: the calls of rpmsg and CAN
 
 ---
  HAL_ISSUE_LOG.md                              | 51 +++++++++++++++++++
