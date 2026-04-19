@@ -1,7 +1,7 @@
 From b9debbf540329c1dee28d707e47e0694244bf9db Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Fri, 17 Apr 2026 11:32:03 +0800
-Subject: [PATCH 03/14] fix: HAL_INTMUX_Init
+Subject: [PATCH 3/5] fix: HAL_INTMUX_Init
 
 ---
  project/rk3506-mcu/src/main.c | 1 +

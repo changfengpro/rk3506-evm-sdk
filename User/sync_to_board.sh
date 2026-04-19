@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ================= 配置区 =================
-LOCAL_DIR="/home/rmer/Project/Linux/vanxoak_rk3506_board_support/User/rpmsg_frame"
+LOCAL_DIR="/home/rmer/Project/Linux/vanxoak_rk3506_board_support/User/rpmsg_init"
 REMOTE_USER="root"
 REMOTE_HOST="192.168.1.10"
 REMOTE_PASS="root"
@@ -25,7 +25,7 @@ if [ $? -eq 0 ]; then
     # 通过 ssh 登录板子并远程执行 chmod
     # 这里的路径组合为 /root/rpmsg_frame/rpmsg_frame（假设你的可执行文件与文件夹同名）
     # 如果 rpmsg_frame 只是一个文件而不是文件夹，请将路径改为 "$REMOTE_DIR/$DIR_NAME"
-    sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "$REMOTE_USER@$REMOTE_HOST" "chmod +x ./rpmsg_frame"
+    sshpass -p "$REMOTE_PASS" ssh -o StrictHostKeyChecking=no "$REMOTE_USER@$REMOTE_HOST" "chmod +x ./rpmsg_init"
     
     if [ $? -eq 0 ]; then
         echo "[Success] 权限配置完成！"
