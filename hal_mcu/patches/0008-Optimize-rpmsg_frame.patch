@@ -1,7 +1,7 @@
 From 367817faada3ccd5b05c89e078535186f88e510e Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Sat, 18 Apr 2026 14:53:46 +0800
-Subject: [PATCH 08/11] Optimize: rpmsg_frame
+Subject: [PATCH 08/13] Optimize: rpmsg_frame
 
 ---
  HAL_ISSUE_LOG.md                              | 161 ++++++

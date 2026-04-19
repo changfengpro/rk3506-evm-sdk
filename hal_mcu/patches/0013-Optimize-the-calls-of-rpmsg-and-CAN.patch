@@ -1,0 +1,157 @@
+From 1af9f90da461a1dc9646f1389f89b2126147ffdc Mon Sep 17 00:00:00 2001
+From: changfengpro <2728019272@qq.com>
+Date: Sun, 19 Apr 2026 15:01:18 +0800
+Subject: [PATCH 13/13] Optimize: the calls of rpmsg and CAN
+
+---
+ HAL_ISSUE_LOG.md                              | 51 +++++++++++++++++++
+ .../modules/rpmsg_frame/rpmsg_frame.c         | 25 +++++----
+ project/rk3506-mcu/src/robot.c                |  9 ++--
+ 3 files changed, 72 insertions(+), 13 deletions(-)
+
+diff --git a/HAL_ISSUE_LOG.md b/HAL_ISSUE_LOG.md
+index 5acefa5..c59a64f 100644
+--- a/HAL_ISSUE_LOG.md
++++ b/HAL_ISSUE_LOG.md
+@@ -494,3 +494,54 @@
+   - `g_can_rx_irq_cnt`
+   - `g_appCanRxCnt`
+ - 修改固件后再做 J-Link 变量读取时，要以当前 `TestDemo.elf` 重新取地址，不能沿用旧版符号地址。
++
++---
++
++## [2026-04-19] 误回滚后 RPMsg 帧率回落（500Hz -> 250Hz/470Hz）
++
++### 现象
++
++- 原本已稳定的 RPMsg 500Hz 回落，现场表现为约 250Hz（部分场景约 470Hz）。
++- Linux 侧 `rpmsg_fps.log` 显示 `TX/RX` 同步但低于目标值。
++- 同期 MCU 工程可正常编译运行，不是“完全不通”而是吞吐下降。
++
++### 影响
++
++- 并发联调窗口被压缩，RPMsg 与 CAN 同时压测时更容易出现节拍不达标。
++- 上层容易误判为 Linux 侧调度波动或链路随机抖动，排障效率下降。
++
++### 根因
++
++- 根因 1（MCU）：`project/rk3506-mcu/src/robot.c` 中 `Robot_RPMsgCallback()` 被回滚为阻塞发送：
++  - `RPMsgFrameTransmitStateFrame(..., RL_BLOCK)`
++  - 回调在中断链路中执行，阻塞发送会直接拉低可持续帧率。
++- 根因 2（Linux 工具）：板端存在两个可执行文件：
++  - `/root/rpmsg_frame`（旧版本，现场约 470Hz）
++  - `/root/rpmsg_frame_new`（新版本，现场约 500Hz）
++  - 若误启动旧版本，会造成“固件已修复但帧率仍偏低”的假象。
++- 性能补充项：`project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.c` 的 CRC 若被回滚为逐位算法，也会进一步拖慢吞吐。
++
++### 修复
++
++- 文件：`project/rk3506-mcu/src/robot.c`
++  - 将回调发送恢复为非阻塞：
++    - `RPMsgFrameTransmitStateFrame(ins, HAL_GetTick(), RL_DONT_BLOCK)`
++- 文件：`project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.c`
++  - 保持 CRC16 查表实现（nibble table），避免回滚到逐位循环。
++- Linux 侧运行策略：
++  - 压测时固定使用 `/root/rpmsg_frame_new`，避免误跑旧版 `/root/rpmsg_frame`。
++
++### 验证要点
++
++- MCU 侧：`make -j12` 编译通过，J-Link 重新下载并启动后生效。
++- Linux 侧（`rpmsg_frame_new`）：`rpmsg_fps.log` 连续稳定在 500Hz 附近，例如：
++  - `TX: 502 fps | RX: 501 fps | DROP: 0`
++  - `TX: 500 fps | RX: 500 fps | DROP: 0`
++  - `TX: 501 fps | RX: 501 fps | DROP: 0`
++- Linux 侧（`rpmsg_frame` 旧版）对照：约 470~473 fps。
++
++### 经验总结
++
++- RPMsg 回调/中断路径禁止使用阻塞发送。
++- 现场回归必须同时确认“固件版本 + Linux 用户态可执行版本”。
++- 本次修复按要求未新增调试变量，运行态值通过 J-Link 读取现有符号与寄存器完成核对。
+diff --git a/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.c b/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.c
+index f1cfdb3..1284d3a 100644
+--- a/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.c
++++ b/project/rk3506-mcu/modules/rpmsg_frame/rpmsg_frame.c
+@@ -19,6 +19,13 @@
+  */
+ static uint16_t RPMsgFrameCalcCrc16(const uint8_t *data, uint32_t len)
+ {
++	/* Nibble table for CRC16-CCITT(FALSE), poly=0x1021. */
++	static const uint16_t kCrcNibbleTable[16] = {
++		0x0000U, 0x1021U, 0x2042U, 0x3063U,
++		0x4084U, 0x50A5U, 0x60C6U, 0x70E7U,
++		0x8108U, 0x9129U, 0xA14AU, 0xB16BU,
++		0xC18CU, 0xD1ADU, 0xE1CEU, 0xF1EFU,
++	};
+ 	uint16_t crc = 0xFFFFU;
+ 	uint32_t i;
+ 
+@@ -27,16 +34,14 @@ static uint16_t RPMsgFrameCalcCrc16(const uint8_t *data, uint32_t len)
+ 	}
+ 
+ 	for (i = 0U; i < len; i++) {
+-		uint8_t bit;
+-
+-		crc ^= (uint16_t)((uint16_t)data[i] << 8);
+-		for (bit = 0U; bit < 8U; bit++) {
+-			if ((crc & 0x8000U) != 0U) {
+-				crc = (uint16_t)((crc << 1) ^ 0x1021U);
+-			} else {
+-				crc = (uint16_t)(crc << 1);
+-			}
+-		}
++		uint8_t byte = data[i];
++		uint8_t idx;
++
++		idx = (uint8_t)(((uint8_t)(crc >> 12U)) ^ (uint8_t)(byte >> 4U));
++		crc = (uint16_t)((uint16_t)(crc << 4U) ^ kCrcNibbleTable[idx & 0x0FU]);
++
++		idx = (uint8_t)(((uint8_t)(crc >> 12U)) ^ (byte & 0x0FU));
++		crc = (uint16_t)((uint16_t)(crc << 4U) ^ kCrcNibbleTable[idx & 0x0FU]);
+ 	}
+ 
+ 	return crc;
+diff --git a/project/rk3506-mcu/src/robot.c b/project/rk3506-mcu/src/robot.c
+index 6fff4ff..9b67e21 100644
+--- a/project/rk3506-mcu/src/robot.c
++++ b/project/rk3506-mcu/src/robot.c
+@@ -21,6 +21,9 @@
+ #define APP_RPMSG_MOTOR_CNT     1U
+ #define APP_RPMSG_TEMP_C        35
+ 
++#define APP_SYSTICK_IRQ_PRIO    1U
++#define APP_RPMSG_IRQ_PRIO      3U
++
+ #define APP_CAN_TX_ID  0x200U
+ #define APP_CAN_RX_ID  0x201U
+ #define APP_CAN_TX_TIMEOUT_MS 0U
+@@ -84,7 +87,7 @@ static void Robot_RPMsgCallback(RPMsgFrameInstance *ins)
+     }
+ 
+     Robot_RPMsgBuildStateFrame(ins, &command);
+-    (void)RPMsgFrameTransmitStateFrame(ins, HAL_GetTick(), RL_BLOCK);
++    (void)RPMsgFrameTransmitStateFrame(ins, HAL_GetTick(), RL_DONT_BLOCK);
+ }
+ 
+ /**
+@@ -110,7 +113,7 @@ static uint8_t Robot_RPMsgInit(void)
+         return 0U;
+     }
+ 
+-    HAL_NVIC_SetPriority(INTMUX_OUT3_IRQn, 1U, 0U);
++    HAL_NVIC_SetPriority(INTMUX_OUT3_IRQn, APP_RPMSG_IRQ_PRIO, 0U);
+     HAL_DBG("app rpmsg frame ready\n");
+ 
+     return 1U;
+@@ -182,7 +185,7 @@ static uint8_t Robot_CanInit(void)
+     CANSetDLC(s_canIns, 8U);
+ 
+     HAL_SYSTICK_Init();
+-    HAL_NVIC_SetPriority(SysTick_IRQn, 2U, 0U);
++    HAL_NVIC_SetPriority(SysTick_IRQn, APP_SYSTICK_IRQ_PRIO, 0U);
+ 
+     return 1U;
+ }
+-- 
+2.43.0
+

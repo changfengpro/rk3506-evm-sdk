@@ -1,7 +1,7 @@
 From 32a5ede570836192d4acc5e6004eb1e8e933176c Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Sat, 18 Apr 2026 01:46:11 +0800
-Subject: [PATCH 06/11] fix: rpmsg link 0
+Subject: [PATCH 06/13] fix: rpmsg link 0
 
 ---
  HAL_ISSUE_LOG.md                              | 50 ++++++++++++++++++

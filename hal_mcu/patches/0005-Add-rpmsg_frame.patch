@@ -1,7 +1,7 @@
 From 5311ae7545255b8d02c7145e594d9252d4b212c8 Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Sat, 18 Apr 2026 00:33:51 +0800
-Subject: [PATCH 05/11] Add: rpmsg_frame
+Subject: [PATCH 05/13] Add: rpmsg_frame
 
 ---
  project/rk3506-mcu/GCC/Makefile              |   6 +-
