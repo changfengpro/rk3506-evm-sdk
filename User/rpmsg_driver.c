@@ -1,3 +1,12 @@
+/*
+ * @Description: 
+ * @Author: changfengpro
+ * @brief: 
+ * @version: 
+ * @Date: 2026-04-21 22:53:32
+ * @LastEditors:  
+ * @LastEditTime: 2026-04-23 22:01:29
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -252,10 +261,10 @@ int main(int argc, char *argv[])
 
         // 成功读到数据！打印验证 M0 发来的 Mock Data
         printf("\n--- Received Telemetry (Timestamp: %u) ---\n", rx_telemetry.timestamp);
-        printf("Motor[0](M3508) - Round: %d, ECD: %u, Speed: %d RPM\n",
-               rx_telemetry.motors[0].total_round, rx_telemetry.motors[0].ecd, rx_telemetry.motors[0].speed_raw);
-        printf("Motor[4](GM6020) - Round: %d, ECD: %u, Speed: %d RPM\n",
-               rx_telemetry.motors[4].total_round, rx_telemetry.motors[4].ecd, rx_telemetry.motors[4].speed_raw);
+        printf("Motor[0](M3508) - motor_id: %x Round: %d, ECD: %u, Speed: %d RPM\n",
+               rx_telemetry.motors[0].motor_id, rx_telemetry.motors[0].total_round, rx_telemetry.motors[0].ecd, rx_telemetry.motors[0].speed_raw);
+        printf("Motor[4](GM6020) - motor_id: %x Round: %d, ECD: %u, Speed: %d RPM\n",
+               rx_telemetry.motors[4].motor_id, rx_telemetry.motors[4].total_round, rx_telemetry.motors[4].ecd, rx_telemetry.motors[4].speed_raw);
 
         // 【发送阶段】: 组装假指令发给 M0 测试双向连通性
         memset(&tx_control_cmd, 0, sizeof(System_ControlCmd_s));
