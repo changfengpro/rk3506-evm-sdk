@@ -1,0 +1,46 @@
+From ccbfa711d49344cc2d9ae3b32e3946db9b2e445c Mon Sep 17 00:00:00 2001
+From: changfengpro <2728019272@qq.com>
+Date: Sun, 26 Apr 2026 23:08:45 +0800
+Subject: [PATCH] Modify the scope of "make clean"
+
+---
+ common/scripts/mk-amp.sh | 20 ++++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/common/scripts/mk-amp.sh b/common/scripts/mk-amp.sh
+index aecdb13..fcf2567 100755
+--- a/common/scripts/mk-amp.sh
++++ b/common/scripts/mk-amp.sh
+@@ -144,19 +144,19 @@ build_rtthread()
+ 
+ clean_hook()
+ {
+-	[ "$RK_AMP" ] || return 0
++    [ "$RK_AMP" ] || return 0
+ 
+-	if [ "$RK_AMP_RTT_TARGET" ]; then
+-		cd "$RK_RTOS_BSP_DIR/$RK_AMP_RTT_TARGET"
+-		scons -c >/dev/null || true
+-	fi
++    if [ "$RK_AMP_HAL_TARGET" ] && [ -d "$RK_RTOS_BSP_DIR/common/hal/project/$RK_AMP_HAL_TARGET/GCC" ]; then
++        cd "$RK_RTOS_BSP_DIR/common/hal/project/$RK_AMP_HAL_TARGET/GCC"
++        make clean >/dev/null || true
++    fi
+ 
+-	if [ "$RK_AMP_HAL_TARGET" ]; then
+-		cd "$RK_RTOS_BSP_DIR/common/hal/project/$RK_AMP_HAL_TARGET/GCC"
+-		make clean >/dev/null || true
+-	fi
++    if [ "$RK_AMP_RTT_TARGET" ]; then
++        cd "$RK_RTOS_BSP_DIR/$RK_AMP_RTT_TARGET"
++        scons -c >/dev/null || true
++    fi
+ 
+-	rm -rf "$RK_FIRMWARE_DIR/amp.img"
++    rm -rf "$RK_FIRMWARE_DIR/amp.img"
+ }
+ 
+ build_images()
+-- 
+2.43.0
+

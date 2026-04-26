@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# Vanxoak RK3506 SDK 自动化提取与打补丁脚本 (全量备份版)
+# Vanxoak RK3506 SDK 自动化提取与打补丁脚本 (增量更新版)
 # 运行前请确保当前处于 vanxoak_rk3506_board_support 根目录！
 # ==============================================================================
 
@@ -10,7 +10,7 @@ BSP_DIR=$(pwd)
 SDK_DIR=$(realpath "../rk3506_linux6.1_sdk_v1.2.0")
 
 echo "====================================================="
-echo "  🚀 RK3506 BSP 高级自动化全量打包与补丁提取工具"
+echo "  🚀 RK3506 BSP 高级自动化增量打包与补丁提取工具"
 echo "  目标 SDK 路径: $SDK_DIR"
 echo "====================================================="
 
@@ -32,6 +32,7 @@ process_git_component() {
     
     local patch_dir="$BSP_DIR/$bsp_patch_path"
     local base_record_file="$patch_dir/.sdk_base_hash"
+    local last_record_file="$patch_dir/.sdk_last_extracted_commit"
 
     echo -e "\n▶️ 正在处理组件: 【 $comp_name 】"
 
@@ -97,23 +98,46 @@ process_git_component() {
         echo "   📌 已永久记录 $comp_name 的起点 Commit: ${base_hash:0:8}"
     fi
 
-    # 步骤 C：提取从起点到现在的全部 Commit
-    if [ "$current_head" == "$base_hash" ]; then
-        echo "   💤 $comp_name 没有任何自定义提交，跳过。"
+    # 步骤 C：增量提取补丁（新逻辑）
+    local since_hash
+    if [ -f "$last_record_file" ]; then
+        since_hash=$(cat "$last_record_file")
+        # 检查 since_hash 是不是 current_head 的祖先
+        if ! git merge-base --is-ancestor "$since_hash" "$current_head"; then
+            echo "   ⚠️ 上次记录的 commit (${since_hash:0:8}) 不是当前 HEAD 的祖先，将回退到 base_hash 重新提取。"
+            since_hash="$base_hash"
+        fi
     else
-        echo "   🔄 正在提取自起点以来的所有提交..."
-        
-        # 核心逻辑：清空旧的补丁，重新生成全部补丁
-        rm -f "$patch_dir"/*.patch
-        git format-patch "$base_hash"..HEAD -o "$patch_dir/" > /dev/null
-        
-        # 统计生成的补丁数量
-        local patch_count
-        patch_count=$(ls -1 "$patch_dir"/*.patch 2>/dev/null | wc -l)
-        
-        echo "   ✅ 成功生成完整的补丁包！共包含 $patch_count 个 Commit。"
-        echo "   📂 路径: $bsp_patch_path"
+        # 没有上次记录，则从 base_hash 开始提取全部
+        since_hash="$base_hash"
     fi
+
+    if [ "$since_hash" == "$current_head" ]; then
+        echo "   💤 $comp_name 没有新的提交，无需生成补丁。"
+    else
+        echo "   🔄 正在提取 $since_hash..$current_head 之间的新提交..."
+        
+        # 生成补丁到临时目录，避免文件名冲突
+        local tmp_patch_dir
+        tmp_patch_dir=$(mktemp -d)
+        git format-patch "$since_hash"..HEAD -o "$tmp_patch_dir/" > /dev/null
+        
+        local new_count
+        new_count=$(ls -1 "$tmp_patch_dir"/*.patch 2>/dev/null | wc -l)
+        
+        if [ "$new_count" -gt 0 ]; then
+            # 移动到正式补丁目录（直接追加，不删除旧补丁）
+            mv "$tmp_patch_dir"/*.patch "$patch_dir/"
+            echo "   ✅ 已添加 $new_count 个新补丁到 $bsp_patch_path"
+        else
+            echo "   💤 没有新补丁生成。"
+        fi
+        rm -rf "$tmp_patch_dir"
+    fi
+
+    # 更新最后提取点
+    echo "$current_head" > "$last_record_file"
+    echo "   📌 已记录当前提取点: ${current_head:0:8}"
     
     # 返回 BSP 目录
     cd "$BSP_DIR" || exit

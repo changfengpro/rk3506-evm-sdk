@@ -1,7 +1,7 @@
 From 73234d293cc5b6b7aea92adf75b9b170751ea4b1 Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Thu, 16 Apr 2026 23:45:42 +0800
-Subject: [PATCH 1/7] fix: the can function to stop the storm.
+Subject: [PATCH 01/10] fix: the can function to stop the storm.
 
 ---
  project/rk3506-mcu/bsp/bsp_can/bsp_can.c | 81 ++----------------------

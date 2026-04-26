@@ -1,8 +1,8 @@
 From 64b0f9039d119ce7d6a18e276d5c5b775f1c85b8 Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Tue, 21 Apr 2026 22:50:04 +0800
-Subject: [PATCH 7/7] Fix: Communication link disconnection caused by incorrect
- link_id
+Subject: [PATCH 07/10] Fix: Communication link disconnection caused by
+ incorrect link_id
 
 ---
  HAL_ISSUE_LOG.md                              | 45 +++++++++++

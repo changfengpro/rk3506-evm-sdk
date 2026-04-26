@@ -1,7 +1,7 @@
 From b73951ae1bd61ece382c6ad6083a2b3270a030ab Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Sun, 19 Apr 2026 22:25:16 +0800
-Subject: [PATCH 5/7] CAN information flow: Motor<->MCU<->rpmsg<->Linux
+Subject: [PATCH 05/10] CAN information flow: Motor<->MCU<->rpmsg<->Linux
 
 ---
  project/rk3506-mcu/bsp/bsp_can/bsp_can.c |   5 +-

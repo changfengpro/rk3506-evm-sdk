@@ -1,7 +1,7 @@
 From 5b0707e9f83bf9d1bb26d7eaa3f078d3bf24abe8 Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Tue, 21 Apr 2026 21:10:51 +0800
-Subject: [PATCH 6/7] Added rpmsg_frame to encapsulate control commands
+Subject: [PATCH 06/10] Added rpmsg_frame to encapsulate control commands
 
 ---
  .../include/platform/RK3506/rpmsg_config.h    |  10 +

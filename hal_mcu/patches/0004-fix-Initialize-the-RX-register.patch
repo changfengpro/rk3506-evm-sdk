@@ -1,7 +1,7 @@
 From 65c271436b581972221c20ed8f3bb094eb2e7111 Mon Sep 17 00:00:00 2001
 From: changfengpro <2728019272@qq.com>
 Date: Fri, 17 Apr 2026 12:31:20 +0800
-Subject: [PATCH 4/7] fix: Initialize the RX register
+Subject: [PATCH 04/10] fix: Initialize the RX register
 
 ---
  HAL_ISSUE_LOG.md                         | 63 ++++++++++++++++++++++++
