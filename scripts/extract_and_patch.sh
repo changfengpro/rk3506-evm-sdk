@@ -1,16 +1,22 @@
 #!/bin/bash
 
 # ==============================================================================
-# Vanxoak RK3506 SDK 自动化提取与打补丁脚本 (增量更新版)
+# Vanxoak RK3506 SDK 自动化提取与打补丁脚本 (固定起点增量版)
 # 运行前请确保当前处于 vanxoak_rk3506_board_support 根目录！
 # ==============================================================================
 
+# ---------- 固定起点 Commit（写死，不再提取这些 commit 本身及其之前的提交）----------
+FIXED_UBOOT_START="a149eb998f682195a50496c6cef8893b5d6510a5"
+FIXED_KERNEL_START="0c906403c083dee567123564dd650f90df7afb9c"
+FIXED_BUILDROOT_START="dd13604adbb429a5048e9051e9ca3eb348d7229d"
+FIXED_DEVICE_START="ccbfa711d49344cc2d9ae3b32e3946db9b2e445c"
+# --------------------------------------------------------------------------------
+
 BSP_DIR=$(pwd)
-# 假设 SDK 目录与你的 BSP 备份目录同级，请根据实际情况修改此路径
 SDK_DIR=$(realpath "../rk3506_linux6.1_sdk_v1.2.0")
 
 echo "====================================================="
-echo "  🚀 RK3506 BSP 高级自动化增量打包与补丁提取工具"
+echo "  🚀 RK3506 BSP 自动化打包工具 (固定起点模式)"
 echo "  目标 SDK 路径: $SDK_DIR"
 echo "====================================================="
 
@@ -24,19 +30,32 @@ PACK_MODE=${PACK_MODE:-o}
 
 echo -e "\n-----------------------------------------------------"
 
-# 2. 定义处理 Git 组件的函数
+# 2. 根据组件名获取固定起点（如果未定义则返回空）
+get_fixed_start() {
+    case "$1" in
+        "U-Boot / SPL")       echo "$FIXED_UBOOT_START" ;;
+        "Linux Kernel")       echo "$FIXED_KERNEL_START" ;;
+        "Buildroot")          echo "$FIXED_BUILDROOT_START" ;;
+        "Device (AMP 镜像配置)") echo "$FIXED_DEVICE_START" ;;
+        *)                    echo "" ;;   # 其他组件无固定起点，沿用旧逻辑
+    esac
+}
+
+# 3. 处理 Git 组件的函数
 process_git_component() {
     local comp_name=$1
     local sdk_path=$2
     local bsp_patch_path=$3
-    
+
     local patch_dir="$BSP_DIR/$bsp_patch_path"
     local base_record_file="$patch_dir/.sdk_base_hash"
     local last_record_file="$patch_dir/.sdk_last_extracted_commit"
+    local fixed_start
+    fixed_start=$(get_fixed_start "$comp_name")
 
     echo -e "\n▶️ 正在处理组件: 【 $comp_name 】"
 
-    # 如果是“逐个确认”模式，先询问是否跳过
+    # 模式确认
     if [[ "$PACK_MODE" != "a" && "$PACK_MODE" != "A" ]]; then
         read -p "❓ 是否检查并打包 $comp_name ? [Y/n]: " DO_PACK
         DO_PACK=${DO_PACK:-y}
@@ -52,8 +71,8 @@ process_git_component() {
     fi
 
     cd "$SDK_DIR/$sdk_path" || exit
-    
-    # 步骤 A：检查并处理未暂存/未提交的工作区修改
+
+    # 步骤 A：未提交更改自动提交
     if [ -n "$(git status --porcelain)" ]; then
         echo "   🚨 侦测到 $comp_name 工作区有未提交的代码修改！"
         while true; do
@@ -68,65 +87,75 @@ process_git_component() {
         git commit -m "$MSG"
     fi
 
-    # 步骤 B：获取 SDK 初始起点 (Base Commit)
-    mkdir -p "$patch_dir"
+    # 步骤 B：确定 SDK 基础起点（仅用于无固定起点的组件）
     local current_head
     current_head=$(git rev-parse HEAD)
-    local base_hash
+    local base_hash=""
 
-    if [ -f "$base_record_file" ]; then
-        base_hash=$(cat "$base_record_file")
-    else
-        # 首次运行，尝试自动寻找 SDK 的原始起点（通常是本地分支与上游 remote 分支的交叉点）
-        base_hash=$(git merge-base HEAD @{u} 2>/dev/null)
-        
-        if [ -z "$base_hash" ]; then
-            # 如果没关联上游分支，要求手动输入
-            echo "   ⚠️ 无法自动检测到 $comp_name 的 SDK 初始节点 (Base Commit)。"
-            echo "   请通过 'git log' 找到你第一次修改前的那条原厂 Commit Hash 并粘贴到下方："
-            read -p "   > " base_hash
-            
-            # 校验输入的 hash 是否有效
-            if ! git cat-file -e "$base_hash^{commit}" 2>/dev/null; then
-                echo "   ❌ 无效的 Commit Hash，跳过此组件。"
-                cd "$BSP_DIR" || exit
-                return
+    if [ -z "$fixed_start" ]; then
+        # 需要 base_hash（原来的逻辑）
+        mkdir -p "$patch_dir"
+        if [ -f "$base_record_file" ]; then
+            base_hash=$(cat "$base_record_file")
+        else
+            base_hash=$(git merge-base HEAD @{u} 2>/dev/null)
+            if [ -z "$base_hash" ]; then
+                echo "   ⚠️ 无法自动检测到 $comp_name 的 SDK 初始节点 (Base Commit)。"
+                echo "   请通过 'git log' 找到你第一次修改前的那条原厂 Commit Hash 并粘贴到下方："
+                read -p "   > " base_hash
+                if ! git cat-file -e "$base_hash^{commit}" 2>/dev/null; then
+                    echo "   ❌ 无效的 Commit Hash，跳过此组件。"
+                    cd "$BSP_DIR" || exit
+                    return
+                fi
             fi
+            echo "$base_hash" > "$base_record_file"
+            echo "   📌 已永久记录 $comp_name 的起点 Commit: ${base_hash:0:8}"
         fi
-        
-        echo "$base_hash" > "$base_record_file"
-        echo "   📌 已永久记录 $comp_name 的起点 Commit: ${base_hash:0:8}"
     fi
 
-    # 步骤 C：增量提取补丁（新逻辑）
+    # 步骤 C：确定提取起点并生成补丁
     local since_hash
-    if [ -f "$last_record_file" ]; then
-        since_hash=$(cat "$last_record_file")
-        # 检查 since_hash 是不是 current_head 的祖先
+    if [ -n "$fixed_start" ]; then
+        # 固定起点模式
+        since_hash="$fixed_start"
+        if ! git cat-file -e "$since_hash^{commit}" 2>/dev/null; then
+            echo "   ❌ 固定起点 $since_hash 无效，跳过此组件。"
+            cd "$BSP_DIR" || exit
+            return
+        fi
         if ! git merge-base --is-ancestor "$since_hash" "$current_head"; then
-            echo "   ⚠️ 上次记录的 commit (${since_hash:0:8}) 不是当前 HEAD 的祖先，将回退到 base_hash 重新提取。"
-            since_hash="$base_hash"
+            echo "   ❌ 固定起点 $since_hash 不是当前 HEAD 的祖先，可能发生了 rebase。"
+            echo "   请手动更新脚本中的固定起点或重新设置 base。"
+            cd "$BSP_DIR" || exit
+            return
         fi
     else
-        # 没有上次记录，则从 base_hash 开始提取全部
-        since_hash="$base_hash"
+        # 普通增量模式（基于文件记录的 last_extracted_commit）
+        mkdir -p "$patch_dir"
+        if [ -f "$last_record_file" ]; then
+            since_hash=$(cat "$last_record_file")
+            if ! git merge-base --is-ancestor "$since_hash" "$current_head"; then
+                echo "   ⚠️ 上次记录的 commit 不是当前 HEAD 的祖先，回退到 base_hash。"
+                since_hash="$base_hash"
+            fi
+        else
+            since_hash="$base_hash"
+        fi
     fi
 
     if [ "$since_hash" == "$current_head" ]; then
         echo "   💤 $comp_name 没有新的提交，无需生成补丁。"
     else
         echo "   🔄 正在提取 $since_hash..$current_head 之间的新提交..."
-        
-        # 生成补丁到临时目录，避免文件名冲突
         local tmp_patch_dir
         tmp_patch_dir=$(mktemp -d)
         git format-patch "$since_hash"..HEAD -o "$tmp_patch_dir/" > /dev/null
-        
+
         local new_count
         new_count=$(ls -1 "$tmp_patch_dir"/*.patch 2>/dev/null | wc -l)
-        
+
         if [ "$new_count" -gt 0 ]; then
-            # 移动到正式补丁目录（直接追加，不删除旧补丁）
             mv "$tmp_patch_dir"/*.patch "$patch_dir/"
             echo "   ✅ 已添加 $new_count 个新补丁到 $bsp_patch_path"
         else
@@ -135,22 +164,24 @@ process_git_component() {
         rm -rf "$tmp_patch_dir"
     fi
 
-    # 更新最后提取点
-    echo "$current_head" > "$last_record_file"
-    echo "   📌 已记录当前提取点: ${current_head:0:8}"
-    
-    # 返回 BSP 目录
+    # 步骤 D：更新上次提取点（仅对非固定起点组件）
+    if [ -z "$fixed_start" ]; then
+        echo "$current_head" > "$last_record_file"
+        echo "   📌 已记录当前提取点: ${current_head:0:8}"
+    else
+        echo "   📌 固定起点模式，提取点不变: ${since_hash:0:8}"
+    fi
+
     cd "$BSP_DIR" || exit
 }
 
-# 3. 依次处理各个代码组件
-process_git_component "U-Boot / SPL" "u-boot" "u-boot/patches"
-process_git_component "Linux Kernel" "kernel" "kernel/patches"
-process_git_component "HAL (M0 固件)" "hal" "hal_mcu/patches"
-process_git_component "Device (AMP 镜像配置)" "device/rockchip" "device_rockchip/patches"
-process_git_component "Buildroot" "buildroot" "buildroot/patches"
+# 4. 依次处理各组件（已移除 HAL）
+process_git_component "U-Boot / SPL"             "u-boot"          "u-boot/patches"
+process_git_component "Linux Kernel"             "kernel"          "kernel/patches"
+process_git_component "Device (AMP 镜像配置)"    "device/rockchip"  "device_rockchip/patches"
+process_git_component "Buildroot"                "buildroot"       "buildroot/patches"
 
-# 4. 同步静态配置文件
+# 5. 同步静态配置文件
 echo -e "\n-----------------------------------------------------"
 echo "📂 正在同步全局静态配置文件 (Configs & DTS)..."
 
@@ -163,7 +194,7 @@ cp -r "$SDK_DIR/output/.config" "$BSP_DIR/device_rockchip/global_config.bak" 2>/
 
 echo "✅ 静态配置同步完成。"
 
-# 5. 提交你的 BSP 备份仓库
+# 6. 提交 BSP 备份仓库
 echo -e "\n-----------------------------------------------------"
 echo "📦 正在检查总 BSP 备份库状态..."
 cd "$BSP_DIR" || exit
@@ -179,7 +210,6 @@ if [ -n "$(git status --porcelain)" ]; then
             echo "❌ 总仓库 Commit 不能为空！"
         fi
     done
-    
     git commit -m "$BSP_MSG"
     echo -e "\n🎉 打包圆满完成！本地 BSP 库已更新。"
     echo "💡 别忘了执行 'git push'！"
